@@ -1,0 +1,7 @@
+{
+  "user": "PRAVEEN_GATTU",
+  "account": "PM-PM_AWS_US_WEST_2",
+  "url": "PM-PM_AWS_US_WEST_2.snowflakecomputing.com",
+  "private_key_file": "/Users/pgattu/.snowflake/rsa_key.p8",
+  "role": "PGATTU_TEST_ROLE"
+}
