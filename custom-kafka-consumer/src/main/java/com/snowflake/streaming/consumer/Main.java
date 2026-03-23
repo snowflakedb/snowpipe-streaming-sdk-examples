@@ -7,8 +7,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Entry point. Supports two modes:
@@ -24,8 +29,9 @@ public class Main {
         Config config = new Config(configPath);
 
 
-        logger.info("Starting consumer. Topic={}, Group={}, Channel={}",
-                config.getKafkaTopic(), config.getKafkaGroupId(), config.getSnowflakeChannelName());
+        int threadCount = config.getConsumerThreadCount();
+        logger.info("Starting {} consumer thread(s). Topic={}, Group={}, Channel={}",
+                threadCount, config.getKafkaTopic(), config.getKafkaGroupId(), config.getSnowflakeChannelName());
 
         Properties sfProps = loadSnowflakeProfile(config.getSnowflakeProfilePath());
         SnowflakeStreamingIngestClient sfClient = SnowflakeStreamingIngestClientFactory.builder(
@@ -36,22 +42,44 @@ public class Main {
                 .setProperties(sfProps)
                 .build();
 
-
         logger.info("DB Name: {}", sfClient.getDBName());
         logger.info("Pipe Name: {}", sfClient.getPipeName());
 
-        CustomerConsumerRunner runner = new CustomerConsumerRunner(config, sfClient);
+        List<CustomerConsumerRunner> runners = new ArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+
+        for (int i = 0; i < threadCount; i++) {
+            CustomerConsumerRunner runner = new CustomerConsumerRunner(config, sfClient);
+            runners.add(runner);
+            executor.submit(runner);
+        }
+
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             logger.info("Shutdown hook triggered");
-            runner.shutdown();
+            runners.forEach(CustomerConsumerRunner::shutdown);
+            executor.shutdown();
+            try {
+                if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {
+                    logger.warn("Executor did not terminate in 30s, forcing shutdown");
+                    executor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
         }));
-        runner.run();
 
-        // Cleanup client
         try {
-            sfClient.close();
-        } catch (Exception e) {
-            logger.warn("Error closing Snowflake client", e);
+            executor.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS);
+        } catch (InterruptedException e) {
+            logger.info("Main thread interrupted");
+            Thread.currentThread().interrupt();
+        } finally {
+            try {
+                sfClient.close();
+            } catch (Exception e) {
+                logger.warn("Error closing Snowflake client", e);
+            }
         }
     }
 

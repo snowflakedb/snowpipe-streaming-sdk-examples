@@ -62,6 +62,10 @@ public class Config {
         return Integer.parseInt(props.getProperty("max.rows.per.append", "100"));
     }
 
+    public int getConsumerThreadCount() {
+        return Integer.parseInt(props.getProperty("consumer.thread.count", "1"));
+    }
+
     /**
      * Builds Kafka consumer properties with sensible defaults.
      */

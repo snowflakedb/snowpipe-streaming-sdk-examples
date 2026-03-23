@@ -7,11 +7,11 @@ import com.snowflake.ingest.streaming.OpenChannelResult;
 import com.snowflake.ingest.streaming.SFException;
 import com.snowflake.ingest.streaming.SnowflakeStreamingIngestChannel;
 import com.snowflake.ingest.streaming.SnowflakeStreamingIngestClient;
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.slf4j.Logger;
@@ -19,19 +19,19 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 import java.time.Duration;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
-import java.util.stream.Collectors;
 
 /**
  * Kafka → Snowpipe Streaming consumer that maps one Kafka partition to one
- * Snowflake channel. At startup it queries the topic's partition count,
- * opens a dedicated channel per partition, and manually assigns all partitions
- * so every record flows through its partition-specific channel.
+ * Snowflake channel. Uses Kafka consumer group coordination ({@code subscribe})
+ * so that partitions are automatically distributed across nodes. A
+ * {@link ConsumerRebalanceListener} opens and closes Snowflake channels on
+ * each rebalance to maintain the 1:1 partition-to-channel mapping.
  */
 public class CustomerConsumerRunner implements Runnable {
 
@@ -51,7 +51,6 @@ public class CustomerConsumerRunner implements Runnable {
     private final String kafkaTopicName;
     private final Properties kafkaProps;
     private final long consumerPollDuration;
-    private final int MAX_ROWS_PER_APPEND;
 
     private final SnowflakeStreamingIngestClient sfClient;
     private final String sfChannelPrefix;
@@ -72,7 +71,6 @@ public class CustomerConsumerRunner implements Runnable {
         this.kafkaTopicName = config.getKafkaTopic();
         this.kafkaProps = config.buildKafkaProperties();
         this.consumerPollDuration = config.getConsumerPollDurationMs();
-        this.MAX_ROWS_PER_APPEND = config.getMaxRowsPerAppend();
         this.sfClient = sfClient;
         this.sfChannelPrefix = config.getSnowflakeChannelName();
         this.consumer = consumer;
@@ -86,44 +84,42 @@ public class CustomerConsumerRunner implements Runnable {
             this.consumer = new KafkaConsumer<>(kafkaProps);
         }
 
-        List<PartitionInfo> partitionInfos = consumer.partitionsFor(kafkaTopicName);
-        int partitionCount = partitionInfos.size();
-        logger.info("Topic '{}' has {} partition(s)", kafkaTopicName, partitionCount);
-
-        List<TopicPartition> topicPartitions = partitionInfos.stream()
-                .map(pi -> new TopicPartition(pi.topic(), pi.partition()))
-                .collect(Collectors.toList());
-
-        consumer.assign(topicPartitions);
-
-        for (TopicPartition tp : topicPartitions) {
-            String channelName = sfChannelPrefix + "_P" + tp.partition();
-            OpenChannelResult result = sfClient.openChannel(channelName);
-            SnowflakeStreamingIngestChannel channel = result.getChannel();
-            partitionChannels.put(tp.partition(), channel);
-
-            String lastToken = channel.getLatestCommittedOffsetToken();
-            logger.info("Opened channel '{}' for partition {}. Last committed offset: {}",
-                    channelName, tp.partition(), lastToken);
-
-            if (lastToken != null) {
-                long offset = Long.parseLong(lastToken);
-                consumer.seek(tp, offset + 1);
-                logger.info("Seeked partition {} to offset {}", tp.partition(), offset + 1);
+        consumer.subscribe(List.of(kafkaTopicName), new ConsumerRebalanceListener() {
+            @Override
+            public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+                for (TopicPartition tp : partitions) {
+                    SnowflakeStreamingIngestChannel channel = partitionChannels.remove(tp.partition());
+                    if (channel != null && !channel.isClosed()) {
+                        try {
+                            channel.close(true, Duration.ofSeconds(30));
+                            logger.info("Partition {}: closed channel on revoke", tp.partition());
+                        } catch (Exception e) {
+                            logger.warn("Partition {}: error closing channel on revoke", tp.partition(), e);
+                        }
+                    }
+                }
             }
-        }
 
-        Map<Integer, RowSetBuilder> builders = new HashMap<>();
-        Map<Integer, Long> firstOffsets = new HashMap<>();
-        Map<Integer, Long> lastOffsets = new HashMap<>();
-        Map<Integer, Integer> counts = new HashMap<>();
+            @Override
+            public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+                for (TopicPartition tp : partitions) {
+                    String channelName = sfChannelPrefix + "_P" + tp.partition();
+                    OpenChannelResult result = sfClient.openChannel(channelName);
+                    SnowflakeStreamingIngestChannel channel = result.getChannel();
+                    partitionChannels.put(tp.partition(), channel);
 
-        for (int p : partitionChannels.keySet()) {
-            builders.put(p, RowSetBuilder.newBuilder2());
-            firstOffsets.put(p, -1L);
-            lastOffsets.put(p, -1L);
-            counts.put(p, 0);
-        }
+                    String lastToken = channel.getLatestCommittedOffsetToken();
+                    logger.info("Opened channel '{}' for partition {}. Last committed offset: {}",
+                            channelName, tp.partition(), lastToken);
+
+                    if (lastToken != null) {
+                        long offset = Long.parseLong(lastToken);
+                        consumer.seek(tp, offset + 1);
+                        logger.info("Seeked partition {} to offset {}", tp.partition(), offset + 1);
+                    }
+                }
+            }
+        });
 
         try {
             while (running) {
@@ -134,24 +130,10 @@ public class CustomerConsumerRunner implements Runnable {
 
                 for (ConsumerRecord<String, String> record : records) {
                     int partition = record.partition();
-                    RowSetBuilder builder = builders.get(partition);
-                    appendRowsetBuilder(builder, record.value());
-
-                    if (firstOffsets.get(partition) == -1L) {
-                        firstOffsets.put(partition, record.offset());
-                    }
-                    lastOffsets.put(partition, record.offset());
-                    counts.merge(partition, 1, Integer::sum);
-
-                    if (counts.get(partition) >= MAX_ROWS_PER_APPEND) {
-                        flushPartition(partition, builders, firstOffsets, lastOffsets, counts);
-                    }
-                }
-
-                for (int p : partitionChannels.keySet()) {
-                    if (counts.get(p) > 0) {
-                        flushPartition(p, builders, firstOffsets, lastOffsets, counts);
-                    }
+                    SnowflakeStreamingIngestChannel channel = partitionChannels.get(partition);
+                    Map<String, Object> row = parseRecord(record.value());
+                    String offsetToken = String.valueOf(record.offset());
+                    appendRowWithRetry(channel, partition, row, offsetToken);
                 }
 
                 commitKafkaOffsetsAfterSnowflakeConfirm();
@@ -161,53 +143,20 @@ public class CustomerConsumerRunner implements Runnable {
         } catch (Exception e) {
             logger.error("Fatal error in consumer loop", e);
         } finally {
-            for (int p : partitionChannels.keySet()) {
-                RowSetBuilder builder = builders.get(p);
-                if (builder.rowSetSize() > 0) {
-                    try {
-                        appendRowsWithRetry(
-                                partitionChannels.get(p), p,
-                                new ArrayList<>(builder.build()), null, null);
-                    } catch (Exception e) {
-                        logger.error("Failed to flush remaining rows for partition {} during shutdown", p, e);
-                    }
-                }
-            }
             cleanup();
             MDC.remove("consumerName");
         }
     }
 
-    private void flushPartition(int partition,
-                                Map<Integer, RowSetBuilder> builders,
-                                Map<Integer, Long> firstOffsets,
-                                Map<Integer, Long> lastOffsets,
-                                Map<Integer, Integer> counts) {
-        RowSetBuilder builder = builders.get(partition);
-        SnowflakeStreamingIngestChannel channel = partitionChannels.get(partition);
-
-        appendRowsWithRetry(
-                channel, partition,
-                new ArrayList<>(builder.build()),
-                String.valueOf(firstOffsets.get(partition)),
-                String.valueOf(lastOffsets.get(partition)));
-
-        builder.clear();
-        firstOffsets.put(partition, -1L);
-        lastOffsets.put(partition, -1L);
-        counts.put(partition, 0);
-    }
-
-    private void appendRowsWithRetry(SnowflakeStreamingIngestChannel channel, int partition,
-                                     List<Map<String, Object>> rows,
-                                     String startOffset, String endOffset) {
+    private void appendRowWithRetry(SnowflakeStreamingIngestChannel channel, int partition,
+                                    Map<String, Object> row, String offsetToken) {
         long backoffMs = INITIAL_BACKOFF_MS;
         int attempt = 0;
 
         while (true) {
             attempt++;
             try {
-                channel.appendRows(rows, startOffset, endOffset);
+                channel.appendRows(List.of(row), offsetToken, offsetToken);
                 return;
             } catch (SFException e) {
                 int httpStatus = e.getHttpStatusCode();
@@ -326,13 +275,12 @@ public class CustomerConsumerRunner implements Runnable {
         }
     }
 
-    private void appendRowsetBuilder(RowSetBuilder builder, String recordValue) {
+    private Map<String, Object> parseRecord(String recordValue) {
         try {
-            Map<String, Object> row = objectMapper.readValue(recordValue, new TypeReference<>() {});
-            builder.addRow(row);
+            return objectMapper.readValue(recordValue, new TypeReference<>() {});
         } catch (Exception e) {
             logger.error("Failed to parse record: {}", recordValue, e);
-            builder.addRow(Map.of("raw_data", recordValue));
+            return Map.of("raw_data", recordValue);
         }
     }
 
