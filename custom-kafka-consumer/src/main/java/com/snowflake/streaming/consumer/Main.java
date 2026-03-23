@@ -45,18 +45,18 @@ public class Main {
         logger.info("DB Name: {}", sfClient.getDBName());
         logger.info("Pipe Name: {}", sfClient.getPipeName());
 
-        List<CustomerConsumerRunner> runners = new ArrayList<>();
+        List<CustomKafkaConsumer> runners = new ArrayList<>();
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
 
         for (int i = 0; i < threadCount; i++) {
-            CustomerConsumerRunner runner = new CustomerConsumerRunner(config, sfClient);
+            CustomKafkaConsumer runner = new CustomKafkaConsumer(config, sfClient);
             runners.add(runner);
             executor.submit(runner);
         }
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             logger.info("Shutdown hook triggered");
-            runners.forEach(CustomerConsumerRunner::shutdown);
+            runners.forEach(CustomKafkaConsumer::shutdown);
             executor.shutdown();
             try {
                 if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {

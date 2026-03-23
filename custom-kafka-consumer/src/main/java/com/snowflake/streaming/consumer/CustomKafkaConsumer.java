@@ -33,9 +33,9 @@ import java.util.Random;
  * {@link ConsumerRebalanceListener} opens and closes Snowflake channels on
  * each rebalance to maintain the 1:1 partition-to-channel mapping.
  */
-public class CustomerConsumerRunner implements Runnable {
+public class CustomKafkaConsumer implements Runnable {
 
-    private static final Logger logger = LoggerFactory.getLogger(CustomerConsumerRunner.class);
+    private static final Logger logger = LoggerFactory.getLogger(CustomKafkaConsumer.class);
 
     private static final int JITTER_BOUND_MS = 200;
     private static final Random jitterRandom = new Random();
@@ -61,11 +61,11 @@ public class CustomerConsumerRunner implements Runnable {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public CustomerConsumerRunner(Config config, SnowflakeStreamingIngestClient sfClient) {
+    public CustomKafkaConsumer(Config config, SnowflakeStreamingIngestClient sfClient) {
         this(config, sfClient, null);
     }
 
-    CustomerConsumerRunner(Config config, SnowflakeStreamingIngestClient sfClient,
+    CustomKafkaConsumer(Config config, SnowflakeStreamingIngestClient sfClient,
                            KafkaConsumer<String, String> consumer) {
         this.kafkaGroupID = config.getKafkaGroupId();
         this.kafkaTopicName = config.getKafkaTopic();
