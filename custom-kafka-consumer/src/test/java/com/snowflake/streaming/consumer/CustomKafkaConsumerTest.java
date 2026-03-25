@@ -142,8 +142,8 @@ class CustomKafkaConsumerTest {
 
         runner.run();
 
-        verify(channelP0).appendRows(anyList(), eq("0"), eq("0"));
-        verify(channelP1).appendRows(anyList(), eq("0"), eq("0"));
+        verify(channelP0).appendRow(anyMap(), eq("0"));
+        verify(channelP1).appendRow(anyMap(), eq("0"));
     }
 
     @Test
@@ -163,13 +163,7 @@ class CustomKafkaConsumerTest {
 
         runner.run();
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<Map<String, Object>>> rowsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(channelP0, times(3)).appendRows(rowsCaptor.capture(), any(), any());
-
-        for (List<Map<String, Object>> rows : rowsCaptor.getAllValues()) {
-            assertEquals(1, rows.size());
-        }
+        verify(channelP0, times(3)).appendRow(anyMap(), any());
     }
 
     @Test
@@ -188,8 +182,8 @@ class CustomKafkaConsumerTest {
 
         runner.run();
 
-        verify(channelP0).appendRows(anyList(), eq("5"), eq("5"));
-        verify(channelP0).appendRows(anyList(), eq("6"), eq("6"));
+        verify(channelP0).appendRow(anyMap(), eq("5"));
+        verify(channelP0).appendRow(anyMap(), eq("6"));
     }
 
     // --- Offset commit ---
@@ -251,11 +245,11 @@ class CustomKafkaConsumerTest {
 
         doThrow(sfException(429))
                 .doNothing()
-                .when(channelP0).appendRows(anyList(), any(), any());
+                .when(channelP0).appendRow(anyMap(), any());
 
         runner.run();
 
-        verify(channelP0, times(2)).appendRows(anyList(), any(), any());
+        verify(channelP0, times(2)).appendRow(anyMap(), any());
     }
 
     @Test
@@ -271,11 +265,11 @@ class CustomKafkaConsumerTest {
 
         doThrow(sfException(503))
                 .doNothing()
-                .when(channelP0).appendRows(anyList(), any(), any());
+                .when(channelP0).appendRow(anyMap(), any());
 
         runner.run();
 
-        verify(channelP0, times(2)).appendRows(anyList(), any(), any());
+        verify(channelP0, times(2)).appendRow(anyMap(), any());
     }
 
     @Test
@@ -299,15 +293,15 @@ class CustomKafkaConsumerTest {
                 .thenAnswer(inv -> { runner.shutdown(); return ConsumerRecords.empty(); });
 
         doThrow(sfException(409))
-                .when(channelP0).appendRows(anyList(), any(), any());
+                .when(channelP0).appendRow(anyMap(), any());
         doNothing()
-                .when(newChannel).appendRows(anyList(), any(), any());
+                .when(newChannel).appendRow(anyMap(), any());
 
         runner.run();
 
         verify(channelP0).close(false, Duration.ZERO);
         verify(sfClient, times(2)).openChannel(CHANNEL_PREFIX + "_P0");
-        verify(newChannel).appendRows(anyList(), any(), any());
+        verify(newChannel).appendRow(anyMap(), any());
     }
 
     @Test
@@ -322,11 +316,11 @@ class CustomKafkaConsumerTest {
                 .thenAnswer(inv -> { runner.shutdown(); return ConsumerRecords.empty(); });
 
         doThrow(sfException(401))
-                .when(channelP0).appendRows(anyList(), any(), any());
+                .when(channelP0).appendRow(anyMap(), any());
 
         runner.run();
 
-        verify(channelP0, times(1)).appendRows(anyList(), any(), any());
+        verify(channelP0, times(1)).appendRow(anyMap(), any());
     }
 
     @Test
@@ -341,11 +335,11 @@ class CustomKafkaConsumerTest {
                 .thenAnswer(inv -> { runner.shutdown(); return ConsumerRecords.empty(); });
 
         doThrow(sfException(403))
-                .when(channelP0).appendRows(anyList(), any(), any());
+                .when(channelP0).appendRow(anyMap(), any());
 
         runner.run();
 
-        verify(channelP0, times(1)).appendRows(anyList(), any(), any());
+        verify(channelP0, times(1)).appendRow(anyMap(), any());
     }
 
     // --- Malformed JSON ---
@@ -364,10 +358,10 @@ class CustomKafkaConsumerTest {
         runner.run();
 
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<Map<String, Object>>> captor = ArgumentCaptor.forClass(List.class);
-        verify(channelP0).appendRows(captor.capture(), any(), any());
+        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+        verify(channelP0).appendRow(captor.capture(), any());
 
-        Map<String, Object> row = captor.getValue().get(0);
+        Map<String, Object> row = captor.getValue();
         assertEquals("not-json", row.get("raw_data"));
     }
 

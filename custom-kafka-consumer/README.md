@@ -30,7 +30,7 @@ To stop Kafka:
 brew services stop kafka
 ```
 
-## Snowflake Setup - Log into Snowflake to setup following entities
+## Snowflake Setup - Log into Snowflake to setup following entities. Database, Schema and Table name should match consumer-config.properties entries
 
 ```sql
 CREATE OR REPLACE DATABASE TEST_DATABASE;
@@ -54,10 +54,6 @@ CREATE OR REPLACE TABLE CALL_DETAIL_RECORDS (
   event_timestamp    TIMESTAMP_LTZ
 );
 
-CREATE OR REPLACE PIPE CALL_DETAIL_RECORDS_STREAMING
-  AS COPY INTO CALL_DETAIL_RECORDS
-  FROM TABLE(DATA_SOURCE(TYPE => 'STREAMING'))
-  MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE;
 ```
 
 ## Configuration
@@ -72,11 +68,11 @@ CREATE OR REPLACE PIPE CALL_DETAIL_RECORDS_STREAMING
 ```bash
 
 
-# Produce test records
-mvn compile exec:java -Dexec.args="produce 1000"
+# Produce test records (runs FakeKafkaWriter at 1 TPS continuously)
+mvn compile exec:java -Dexec.mainClass="com.snowflake.streaming.producer.FakeKafkaWriter"
 
 # Run the consumer
-mvn compile exec:java
+mvn compile exec:java -Dexec.mainClass="com.snowflake.streaming.consumer.Main"
 
 # Stop with Ctrl+C
 ```

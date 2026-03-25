@@ -156,7 +156,7 @@ public class CustomKafkaConsumer implements Runnable {
         while (true) {
             attempt++;
             try {
-                channel.appendRows(List.of(row), offsetToken, offsetToken);
+                channel.appendRow(row, offsetToken);
                 return;
             } catch (SFException e) {
                 int httpStatus = e.getHttpStatusCode();

@@ -16,14 +16,45 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Entry point. Supports two modes:
- *   java -cp ... Main produce [count]   — push test records to Kafka
- *   java -cp ... Main consume           — run the consumer
+ * Entry point for the Custom Kafka Consumer application.
+ *
+ * <p>Launches one or more {@link CustomKafkaConsumer} threads that read from a Kafka topic
+ * and ingest records into Snowflake via the Snowpipe Streaming SDK. The number of consumer
+ * threads is controlled by the {@code consumer.thread.count} property in the config file.</p>
+ *
+ * <h3>Lifecycle</h3>
+ * <ol>
+ *   <li>Loads consumer configuration from a properties file (default: {@code consumer-config.properties},
+ *       overridable via {@code -Dconfig.path=...}).</li>
+ *   <li>Loads Snowflake connection credentials from a JSON profile file.</li>
+ *   <li>Creates a shared {@link SnowflakeStreamingIngestClient} used by all consumer threads.</li>
+ *   <li>Submits {@code consumer.thread.count} {@link CustomKafkaConsumer} instances to a
+ *       fixed-size thread pool. Each instance independently subscribes to the Kafka topic
+ *       and participates in consumer-group rebalancing.</li>
+ *   <li>Registers a JVM shutdown hook that gracefully stops all consumers, waits up to 30 seconds
+ *       for the executor to drain, and closes the Snowflake client.</li>
+ * </ol>
+ *
+ * <h3>Usage</h3>
+ * <pre>{@code
+ * mvn compile exec:java                          # uses default consumer-config.properties
+ * mvn compile exec:java -Dconfig.path=my.props   # custom config path
+ * }</pre>
+ *
+ * @see CustomKafkaConsumer
+ * @see Config
  */
 public class Main {
 
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
+    /**
+     * Bootstraps the application: loads config, creates the Snowflake client,
+     * launches consumer threads, and blocks until shutdown.
+     *
+     * @param args not used; configuration is loaded from the properties file
+     * @throws Exception if config loading, Snowflake client creation, or profile parsing fails
+     */
     public static void main(String[] args) throws Exception {
         String configPath = System.getProperty("config.path", "consumer-config.properties");
         Config config = new Config(configPath);
@@ -38,7 +69,7 @@ public class Main {
                         "TEST_CLIENT",
                         config.getSnowflakeDatabase(),
                         config.getSnowflakeSchema(),
-                        "CALL_DETAIL_RECORDS-STREAMING")
+                        config.getSnowflakeTable()+"-STREAMING")
                 .setProperties(sfProps)
                 .build();
 
@@ -84,8 +115,15 @@ public class Main {
     }
 
     /**
-     * Loads Snowflake connection profile from a JSON file.
-     * Expected keys: url, account, user, role, private_key (or private_key_file), warehouse
+     * Loads Snowflake connection properties from a JSON profile file.
+     *
+     * <p>The JSON file should contain a flat object with string values. Expected keys include:
+     * {@code url}, {@code account}, {@code user}, {@code role}, {@code private_key}
+     * (or {@code private_key_file}), and {@code warehouse}.</p>
+     *
+     * @param path filesystem path to the JSON profile file
+     * @return a {@link Properties} object populated with the profile entries
+     * @throws Exception if the file cannot be read or parsed
      */
     private static Properties loadSnowflakeProfile(String path) throws Exception {
         ObjectMapper mapper = new ObjectMapper();
