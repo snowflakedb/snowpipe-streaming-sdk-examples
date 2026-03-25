@@ -87,14 +87,18 @@ SELECT * FROM TEST_DB.PUBLIC.TEST_TABLE LIMIT 10;
 ## Project Structure
 
 ```
-├── consumer-config.properties                 # Runtime config
+├── consumer-config.properties                 # Consumer runtime config to read from Kafka and write to Snowpipe Streaming
+├── producer-config.properties                 # Producer runtime config to write to Kafka
 ├── profile.json                               # Snowflake credentials (gitignored)
 ├── pom.xml
 └── src/
-    ├── main/java/com/snowflake/streaming/consumer/
-    │   ├── Main.java              # Entry point, launches N consumer threads
-    │   ├── CustomKafkaConsumer.java # Kafka → Snowpipe Streaming consumer
-    │   └── Config.java            # Config loader
+    ├── main/java/com/snowflake/streaming/
+    │   ├── consumer/
+    │   │   ├── Main.java              # Entry point, launches N consumer threads
+    │   │   ├── CustomKafkaConsumer.java # Kafka → Snowpipe Streaming consumer
+    │   │   └── Config.java            # Config loader
+    │   └── producer/
+    │       └── FakeKafkaWriter.java   # Test producer, writes CDR records to Kafka
     └── test/java/com/snowflake/streaming/consumer/
         └── CustomKafkaConsumerTest.java  # Unit tests
 ```
