@@ -14,11 +14,7 @@ Sample standalone consumer that demonstrates Kafka-to-Snowflake streaming consum
 # Install Kafka
 brew install kafka
 
-# Generate a cluster ID and format storage for KRaft mode (one-time setup)
-KAFKA_CLUSTER_ID="$(kafka-storage random-uuid)"
-kafka-storage format -t $KAFKA_CLUSTER_ID -c $(brew --prefix)/etc/kafka/kraft/server.properties
-
-# Start Kafka (no Zookeeper needed)
+# Start Kafka
 brew services start kafka
 
 # Create a test topic with 3 partitions
