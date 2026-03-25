@@ -107,6 +107,21 @@ class CustomKafkaConsumerTest {
     }
 
     @Test
+    void freshStartWithNoCommittedOffsetsReadsFromBeginning() {
+        when(channelP0.getLatestCommittedOffsetToken()).thenReturn(null);
+        when(channelP1.getLatestCommittedOffsetToken()).thenReturn(null);
+
+        simulateRebalanceThenShutdown(List.of(tp(0), tp(1)));
+
+        runner.run();
+
+        verify(sfClient).openChannel(CHANNEL_PREFIX + "_P0");
+        verify(sfClient).openChannel(CHANNEL_PREFIX + "_P1");
+        verify(kafkaConsumer, never()).seek(eq(tp(0)), anyLong());
+        verify(kafkaConsumer, never()).seek(eq(tp(1)), anyLong());
+    }
+
+    @Test
     void closesChannelsOnPartitionsRevoked() throws Exception {
         when(kafkaConsumer.poll(any()))
                 .thenAnswer(inv -> {
@@ -122,6 +137,44 @@ class CustomKafkaConsumerTest {
         runner.run();
 
         verify(channelP1).close(eq(true), any());
+    }
+
+    @Test
+    void revokedPartitionIsReassignedAndResumesIngestion() throws Exception {
+        SnowflakeStreamingIngestChannel channelP1Reopened = mock(SnowflakeStreamingIngestChannel.class);
+        OpenChannelResult reopenResult = mock(OpenChannelResult.class);
+        when(reopenResult.getChannel()).thenReturn(channelP1Reopened);
+        when(channelP1Reopened.getLatestCommittedOffsetToken()).thenReturn(null);
+        lenient().when(channelP1Reopened.isClosed()).thenReturn(false);
+
+        when(sfClient.openChannel(CHANNEL_PREFIX + "_P1"))
+                .thenReturn(openResultP1)
+                .thenReturn(reopenResult);
+
+        ConsumerRecords<String, String> batchAfterReassign = buildRecords(
+                record(1, 0, "{\"C1\":99}")
+        );
+
+        when(kafkaConsumer.poll(any()))
+                .thenAnswer(inv -> {
+                    rebalanceListener.onPartitionsAssigned(List.of(tp(0), tp(1)));
+                    return ConsumerRecords.empty();
+                })
+                .thenAnswer(inv -> {
+                    rebalanceListener.onPartitionsRevoked(List.of(tp(1)));
+                    return ConsumerRecords.empty();
+                })
+                .thenAnswer(inv -> {
+                    rebalanceListener.onPartitionsAssigned(List.of(tp(1)));
+                    return batchAfterReassign;
+                })
+                .thenAnswer(inv -> { runner.shutdown(); return ConsumerRecords.empty(); });
+
+        runner.run();
+
+        verify(channelP1).close(eq(true), any());
+        verify(sfClient, times(2)).openChannel(CHANNEL_PREFIX + "_P1");
+        verify(channelP1Reopened).appendRow(anyMap(), eq("0"));
     }
 
     // --- Record routing ---
