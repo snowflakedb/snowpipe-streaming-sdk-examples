@@ -56,6 +56,7 @@ public class CustomKafkaConsumer implements Runnable {
     private final String sfChannelPrefix;
 
     private final Map<Integer, SnowflakeStreamingIngestChannel> partitionChannels = new HashMap<>();
+    private final Map<Integer, String> lastCommittedTokens = new HashMap<>();
     private KafkaConsumer<String, String> consumer;
     private volatile boolean running = true;
 
@@ -89,6 +90,7 @@ public class CustomKafkaConsumer implements Runnable {
             public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
                 for (TopicPartition tp : partitions) {
                     SnowflakeStreamingIngestChannel channel = partitionChannels.remove(tp.partition());
+                    lastCommittedTokens.remove(tp.partition());
                     if (channel != null && !channel.isClosed()) {
                         try {
                             channel.close(true, Duration.ofSeconds(30));
@@ -166,7 +168,7 @@ public class CustomKafkaConsumer implements Runnable {
                     throw e;
                 }
 
-                if (httpStatus == 409) {
+                if (httpStatus == 409 ) {
                     logger.warn("Partition {}: channel invalidated (HTTP 409). Reopening. Attempt {}",
                             partition, attempt);
                     channel = reopenChannelForPartition(partition);
@@ -234,6 +236,8 @@ public class CustomKafkaConsumer implements Runnable {
 
     /**
      * Commits Kafka offsets per partition based on each channel's confirmed offset.
+     * Only commits if the Snowflake committed offset token has advanced since the
+     * last Kafka commit, avoiding redundant commits when the token is unchanged.
      */
     private void commitKafkaOffsetsAfterSnowflakeConfirm() {
         Map<TopicPartition, OffsetAndMetadata> offsets = new HashMap<>();
@@ -242,6 +246,11 @@ public class CustomKafkaConsumer implements Runnable {
             int partition = entry.getKey();
             String committedToken = entry.getValue().getLatestCommittedOffsetToken();
             if (committedToken != null) {
+                String previousToken = lastCommittedTokens.get(partition);
+                if (committedToken.equals(previousToken)) {
+                    continue;
+                }
+                lastCommittedTokens.put(partition, committedToken);
                 long sfOffset = Long.parseLong(committedToken);
                 TopicPartition tp = new TopicPartition(kafkaTopicName, partition);
                 offsets.put(tp, new OffsetAndMetadata(sfOffset + 1));
