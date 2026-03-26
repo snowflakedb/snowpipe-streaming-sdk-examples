@@ -1,0 +1,7 @@
+{
+  "user": "xxx_user",
+  "account": "xxx_account",
+  "url": "xxx.snowflakecomputing.com",
+  "private_key_file": "xxx_file_path",
+  "role": "xxx_role"
+}
