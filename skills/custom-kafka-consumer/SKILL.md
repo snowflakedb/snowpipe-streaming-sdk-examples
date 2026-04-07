@@ -1,0 +1,1 @@
+../../custom-kafka-consumer/.cortex/skills/custom-kafka-consumer/SKILL.md
