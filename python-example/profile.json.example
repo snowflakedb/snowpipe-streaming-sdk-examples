@@ -1,7 +1,7 @@
 {
-  "account": "<account>",
+  "account": "<account_identifier>",
   "user": "your_username",
-  "url": "https://<account>.<locator>.snowflakecomputing.com:443",
-  "private_key": "path_to_private_key.pem"
+  "url": "https://<account_identifier>.snowflakecomputing.com:443",
+  "private_key_file": "rsa_key.p8",
+  "role": "your_role"
 }
-

@@ -16,14 +16,12 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Example demonstrating how to use the Snowflake Streaming Ingest SDK.
- * 
- * This example shows how to:
- * 1. Create a Snowflake Streaming Ingest Client
- * 2. Open a channel for data ingestion
- * 3. Ingest rows of data
- * 4. Wait for ingestion to complete
- * 5. Close resources properly
+ * Example demonstrating how to use the Snowflake Streaming Ingest SDK
+ * with the high-performance architecture and default pipe.
+ *
+ * The default pipe is automatically created by Snowflake when you first
+ * open a channel. No CREATE PIPE DDL is required. The default pipe name
+ * follows the convention: {@code <TABLE_NAME>-STREAMING}
  */
 public class StreamingIngestExample {
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -31,6 +29,14 @@ public class StreamingIngestExample {
     private static final int MAX_ROWS = 100_000;
     private static final int POLL_ATTEMPTS = 30;
     private static final long POLL_INTERVAL_MS = TimeUnit.SECONDS.toMillis(1);
+
+    // Replace these with your Snowflake object names
+    private static final String DATABASE = "MY_DATABASE";
+    private static final String SCHEMA = "MY_SCHEMA";
+    private static final String TABLE = "MY_TABLE";
+
+    // Default pipe: Snowflake auto-creates this on first channel open
+    private static final String PIPE = TABLE + "-STREAMING";
 
     public static void main(String[] args) {
         try {
@@ -43,9 +49,9 @@ public class StreamingIngestExample {
             // Create Snowflake Streaming Ingest Client using try-with-resources
             try (SnowflakeStreamingIngestClient client = SnowflakeStreamingIngestClientFactory.builder(
                     "MY_CLIENT_" + UUID.randomUUID(),
-                    "MY_DATABASE",
-                    "MY_SCHEMA",
-                    "MY_PIPE")
+                    DATABASE,
+                    SCHEMA,
+                    PIPE)
                     .setProperties(props)
                     .build()) {
 
@@ -58,7 +64,8 @@ public class StreamingIngestExample {
                     System.out.println("Channel opened: " + channel.getChannelName());
                     System.out.println("Ingesting " + MAX_ROWS + " rows...");
 
-                    // Ingest rows
+                    // Ingest rows — column names must match the target table schema.
+                    // The default pipe uses MATCH_BY_COLUMN_NAME to map fields.
                     for (int i = 1; i <= MAX_ROWS; i++) {
                         String rowId = String.valueOf(i);
                         Map<String, Object> row = Map.of(
@@ -68,7 +75,6 @@ public class StreamingIngestExample {
                         );
                         channel.appendRow(row, rowId);
 
-                        // Print progress every 10,000 rows
                         if (i % 10_000 == 0) {
                             System.out.println("Ingested " + i + " rows...");
                         }
