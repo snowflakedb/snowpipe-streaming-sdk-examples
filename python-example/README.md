@@ -1,19 +1,32 @@
 # Python Snowpipe Streaming SDK Example
 
-This example demonstrates how to use the Snowflake Streaming Ingest SDK in Python to ingest data into Snowflake in real-time.
+This example demonstrates how to use the Snowflake Streaming Ingest SDK in Python to ingest data into Snowflake in real-time using the [high-performance architecture](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-high-performance-overview) and default pipe.
 
 ## Prerequisites
 
 - Python 3.9 or higher
 - pip (Python package manager)
 - A Snowflake account with appropriate permissions
-- A Snowflake table to ingest data into
+- RSA key-pair authentication configured
 
 ## Setup
 
-### 1. Create a Snowflake Table
+### 1. Generate RSA Key Pair
 
-Before running the example, create a table in your Snowflake account:
+```bash
+openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out rsa_key.p8 -nocrypt
+openssl rsa -in rsa_key.p8 -pubout -out rsa_key.pub
+```
+
+Register the public key with your Snowflake user:
+
+```sql
+ALTER USER MY_USER SET RSA_PUBLIC_KEY='<contents of rsa_key.pub, without header/footer>';
+```
+
+### 2. Create a Snowflake Table
+
+Create a target table in your Snowflake account:
 
 ```sql
 CREATE OR REPLACE TABLE MY_DATABASE.MY_SCHEMA.MY_TABLE (
@@ -23,15 +36,7 @@ CREATE OR REPLACE TABLE MY_DATABASE.MY_SCHEMA.MY_TABLE (
 );
 ```
 
-### 2. Create a Snowpipe
-
-Create a Snowpipe for streaming ingestion:
-
-```sql
-CREATE OR REPLACE PIPE MY_DATABASE.MY_SCHEMA.MY_PIPE 
-AS COPY INTO MY_DATABASE.MY_SCHEMA.MY_TABLE 
-FROM @%MY_TABLE;
-```
+No `CREATE PIPE` is needed — the high-performance architecture automatically creates a **default pipe** named `MY_TABLE-STREAMING` when you first open a channel.
 
 ### 3. Install Dependencies
 
@@ -50,27 +55,27 @@ pip install -r requirements.txt
 
 ### 4. Configure Authentication
 
-Create a `profile.json` file in the root of the `python-example` directory with your Snowflake credentials. You can use `profile.json.example` as a template:
+Create a `profile.json` file in the `python-example` directory using `profile.json.example` as a template:
 
 ```json
 {
-  "account": "<account>",
+  "account": "<account_identifier>",
   "user": "your_username",
-  "url": "https://<account>.<locator>.snowflakecomputing.com:443",
-  "private_key": "your_private_key_path_or_content",
+  "url": "https://<account_identifier>.snowflakecomputing.com:443",
+  "private_key_file": "rsa_key.p8",
   "role": "your_role"
 }
 ```
 
-**Note:** For production use, consider using environment variables or a secure credential manager instead of storing credentials in a file.
+**Note:** Use `private_key_file` to reference the key file path. For production, consider using a secure credential manager.
 
 ### 5. Update Configuration
 
-Edit `streaming_ingest_example.py` and update the following values to match your Snowflake setup:
+Edit `streaming_ingest_example.py` and update the constants at the top of the file:
 
-- `MY_DATABASE` - Your database name
-- `MY_SCHEMA` - Your schema name  
-- `MY_PIPE` - Your pipe name
+- `DATABASE` - Your database name
+- `SCHEMA` - Your schema name
+- `TABLE` - Your table name (the pipe name is derived automatically as `<TABLE>-STREAMING`)
 
 ## Run
 
@@ -80,14 +85,14 @@ python streaming_ingest_example.py
 
 ## What the Example Does
 
-1. **Creates a Streaming Ingest Client** - Initializes a connection to Snowflake using the credentials from `profile.json`
-2. **Opens a Channel** - Creates a channel for streaming data into the specified pipe
-3. **Ingests Data** - Sends 100,000 rows of sample data with three columns:
+1. **Creates a Streaming Ingest Client** - Connects to Snowflake using credentials from `profile.json`
+2. **Opens a Channel** - Creates a channel on the default pipe (`MY_TABLE-STREAMING`)
+3. **Ingests Data** - Streams 100,000 rows with columns matched by name (MATCH_BY_COLUMN_NAME):
    - `c1`: Integer counter
    - `c2`: String representation of the counter
    - `ts`: Current timestamp
-4. **Waits for Completion** - Polls the channel status to ensure all data has been committed
-5. **Closes Resources** - Properly closes the channel and client
+4. **Waits for Completion** - Polls the channel status until all data is committed
+5. **Closes Resources** - Properly closes the channel and client via context managers
 
 ## Expected Output
 
@@ -106,29 +111,26 @@ Data ingestion completed
 
 ## Logging
 
-You can adjust the logging level by setting the `SS_LOG_LEVEL` environment variable:
+Adjust the logging level with the `SS_LOG_LEVEL` environment variable:
 
 ```bash
-# For more detailed logs
-export SS_LOG_LEVEL=info
-python streaming_ingest_example.py
-
-# For debug logs
-export SS_LOG_LEVEL=debug
+export SS_LOG_LEVEL=info    # More detailed logs
+export SS_LOG_LEVEL=debug   # Debug logs
 python streaming_ingest_example.py
 ```
 
-The script sets this to `warn` by default to reduce output noise.
+The script defaults to `warn` to reduce output noise.
 
 ## Troubleshooting
 
 - **Connection Issues**: Verify your `profile.json` credentials and network connectivity to Snowflake
-- **Permission Errors**: Ensure your user has the necessary privileges to write to the specified database, schema, and pipe
-- **Table Not Found**: Verify the table exists and the pipe is configured correctly
+- **Permission Errors**: Ensure your role has the necessary privileges on the database, schema, and table
+- **Table Not Found**: Verify the table exists — the default pipe is created automatically
+- **VARIANT Columns**: If using VARIANT columns, pass data as a Python `dict`, not a JSON string
 - **Import Errors**: Make sure you've installed all dependencies with `pip install -r requirements.txt`
 
 ## Additional Resources
 
-- [Snowflake Streaming Ingest SDK Documentation](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-high-performance-overview)
-- [Snowflake Ingest Python SDK on PyPI](https://pypi.org/project/snowpipe-streaming/)
-
+- [High-Performance Streaming Overview](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-high-performance-overview)
+- [Getting Started Guide](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-high-performance-getting-started)
+- [Snowpipe Streaming SDK on PyPI](https://pypi.org/project/snowpipe-streaming/)
