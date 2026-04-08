@@ -177,6 +177,8 @@ mvn compile exec:java -Dexec.mainClass="com.snowflake.streaming.consumer.Main"
 mvn compile exec:java -Dexec.mainClass="com.snowflake.streaming.producer.FakeKafkaWriter"
 ```
 
+Once the producer starts, type `stream 20` to continuously send CDR records at 20 records/sec. Leave both terminals running — the data is needed for Steps 6 and 7.
+
 **Producer interactive commands:**
 
 | Command | Description |
@@ -189,7 +191,7 @@ mvn compile exec:java -Dexec.mainClass="com.snowflake.streaming.producer.FakeKaf
 | `custom [json]` | Send a custom JSON payload |
 | `quit` | Exit the producer |
 
-**Stop both with Ctrl+C.**
+**Stop streaming with Enter. Stop both processes with Ctrl+C.**
 
 ### Step 6: Verify Data in Snowflake
 
@@ -214,11 +216,7 @@ SELECT COUNT(*) AS row_count,
 FROM TEST_DATABASE.TEST_SCHEMA.CALL_DETAIL_RECORDS;
 ```
 
-If not ready, go back to Step 5 and run more data via the producer:
-```
-stream 20
-```
-Wait ~30 seconds, then re-check. Repeat until status shows `READY`.
+If not ready, wait ~30 seconds (the producer from Step 5 is still streaming) and re-check. Repeat until status shows `READY`.
 
 ---
 
@@ -248,7 +246,7 @@ CREATE OR REPLACE SNOWFLAKE.ML.FORECAST tower_drop_forecast (
 );
 ```
 
-Training time: ~24 seconds for 360 rows × 12 towers.
+Training time: ~24 seconds for 360 rows × 12 towers on an X-Small warehouse. Duration varies with warehouse size.
 
 > **Important:** Always use a view/table with exactly 3 columns: series, timestamp, target.
 > Extra columns are treated as exogenous features and cause `FORECAST` to require future values at prediction time.
