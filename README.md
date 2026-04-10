@@ -24,12 +24,21 @@ A complete Python project demonstrating the Snowpipe Streaming SDK in Python. In
 - Setup instructions with virtual environment
 - Sample configuration files
 
+### [Custom Kafka Consumer](./custom-kafka-consumer)
+A production-style Java consumer that reads from an Apache Kafka topic and streams records into Snowflake. Demonstrates partition-aware channel management, manual offset commit after Snowflake confirms ingestion, and consumer group rebalance handling.
+
+### [Custom Pub/Sub Consumer](./custom-pubsub-consumer)
+A production-style Java consumer that reads from a GCP Pub/Sub subscription and streams records into Snowflake. Demonstrates synchronous pull, batch acknowledgement only after Snowflake confirms ingestion, and per-thread channel management.
+
+### [Custom SQS Consumer](./custom-sqs-consumer)
+A production-style Java consumer that reads from an Amazon SQS queue and streams records into Snowflake. Demonstrates long-polling, batch accumulation across multiple receive calls, and delete-after-confirm for at-least-once delivery.
+
 ## Getting Started
 
-1. Choose your preferred language (Java or Python)
+1. Choose an example that matches your message broker or use case
 2. Navigate to the respective example directory
 3. Follow the README instructions in that directory to:
-   - Set up your Snowflake table and pipe
+   - Set up your Snowflake table
    - Configure authentication
    - Install dependencies
    - Run the example
