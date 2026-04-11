@@ -179,14 +179,20 @@ public class CustomSQSConsumer implements Runnable {
         return sqsClient.receiveMessage(request);
     }
 
+    private static final int SQS_MAX_BATCH_DELETE_SIZE = 10;
+
     private void deleteMessages(List<DeleteMessageBatchRequestEntry> entries) {
         if (entries.isEmpty()) return;
 
-        DeleteMessageBatchRequest deleteRequest = DeleteMessageBatchRequest.builder()
-                .queueUrl(queueUrl)
-                .entries(entries)
-                .build();
-        sqsClient.deleteMessageBatch(deleteRequest);
+        for (int i = 0; i < entries.size(); i += SQS_MAX_BATCH_DELETE_SIZE) {
+            List<DeleteMessageBatchRequestEntry> chunk =
+                    entries.subList(i, Math.min(i + SQS_MAX_BATCH_DELETE_SIZE, entries.size()));
+            DeleteMessageBatchRequest deleteRequest = DeleteMessageBatchRequest.builder()
+                    .queueUrl(queueUrl)
+                    .entries(chunk)
+                    .build();
+            sqsClient.deleteMessageBatch(deleteRequest);
+        }
     }
 
     private void appendRowWithRetry(Map<String, Object> row, String offsetToken) {
