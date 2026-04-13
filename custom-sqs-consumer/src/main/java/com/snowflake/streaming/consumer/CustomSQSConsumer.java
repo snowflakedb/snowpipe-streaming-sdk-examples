@@ -72,6 +72,7 @@ public class CustomSQSConsumer implements Runnable {
     private SnowflakeStreamingIngestChannel channel;
 
     private final AtomicLong offsetCounter = new AtomicLong(0);
+    private final AtomicLong totalRowsProcessed = new AtomicLong(0);
     private volatile boolean running = true;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -140,6 +141,7 @@ public class CustomSQSConsumer implements Runnable {
                 // Append all pending rows to Snowflake, then batch-delete from SQS
                 List<DeleteMessageBatchRequestEntry> deleteEntries = new ArrayList<>();
                 int entryIndex = 0;
+                long batchStart = System.currentTimeMillis();
 
                 for (Message message : pending) {
                     String body = message.body();
@@ -155,7 +157,12 @@ public class CustomSQSConsumer implements Runnable {
 
                 // Delete only after ALL appends in this batch have succeeded
                 deleteMessages(deleteEntries);
-                logger.debug("Processed and deleted {} messages", pending.size());
+                long batchMs = System.currentTimeMillis() - batchStart;
+                long total = totalRowsProcessed.addAndGet(pending.size());
+                logger.info("Batch: {} rows in {}ms ({} rows/sec). Total: {} rows.",
+                        pending.size(), batchMs,
+                        (int) (pending.size() * 1000.0 / Math.max(batchMs, 1)),
+                        total);
                 pending.clear();
             }
         } catch (Exception e) {
@@ -282,7 +289,8 @@ public class CustomSQSConsumer implements Runnable {
                 reopenChannel();
             }
         } catch (Exception e) {
-            logger.warn("Error checking channel health", e);
+            logger.warn("Channel invalid during health check ({}). Reopening.", channelName, e);
+            reopenChannel();
         }
     }
 

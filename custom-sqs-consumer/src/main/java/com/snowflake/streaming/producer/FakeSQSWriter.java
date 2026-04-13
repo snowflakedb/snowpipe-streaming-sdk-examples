@@ -5,6 +5,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.SendMessageBatchRequest;
+import software.amazon.awssdk.services.sqs.model.SendMessageBatchRequestEntry;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 import software.amazon.awssdk.services.sqs.model.SqsException;
@@ -13,7 +15,9 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.concurrent.ThreadLocalRandom;
@@ -69,7 +73,113 @@ public class FakeSQSWriter {
     public static void main(String[] args) throws Exception {
         String configPath = System.getProperty("config.path", "producer-config.properties");
         Config config = new Config(configPath);
-        new FakeSQSWriter(config).runInteractive();
+        FakeSQSWriter writer = new FakeSQSWriter(config);
+        if (args.length > 0) {
+            writer.runHeadless(args);
+        } else {
+            writer.runInteractive();
+        }
+    }
+
+    /**
+     * Non-interactive mode for automation and background testing.
+     *
+     * <p>Usage (via Maven): {@code -Dexec.args="burst 500"}</p>
+     * <ul>
+     *   <li>{@code burst [N]}             — send N CDRs using batched SendMessageBatch, then exit</li>
+     *   <li>{@code stream [rps] [secs]}   — stream at rps rec/sec for secs seconds, then exit</li>
+     *   <li>{@code malformed}             — send 5 malformed messages, then exit</li>
+     *   <li>{@code nulls}                 — send 4 null-field messages, then exit</li>
+     * </ul>
+     */
+    public void runHeadless(String[] args) throws Exception {
+        String mode = args[0].toLowerCase();
+        try {
+            switch (mode) {
+                case "burst": {
+                    int count = args.length > 1 ? Integer.parseInt(args[1]) : defaultBurstCount;
+                    System.out.println("Headless burst: sending " + count + " CDRs...");
+                    sendBurstBatched(count);
+                    break;
+                }
+                case "stream": {
+                    int rps = args.length > 1 ? Integer.parseInt(args[1]) : defaultStreamRps;
+                    int durationSeconds = args.length > 2 ? Integer.parseInt(args[2]) : 60;
+                    System.out.println("Headless stream: " + rps + " rps for " + durationSeconds + "s...");
+                    sendContinuousStreamHeadless(rps, durationSeconds);
+                    break;
+                }
+                case "malformed":
+                    sendMalformedMessages();
+                    break;
+                case "nulls":
+                    sendNullFields();
+                    break;
+                default:
+                    System.err.println("Unknown headless mode: " + mode);
+                    System.err.println("Usage: burst [N] | stream [rps] [seconds] | malformed | nulls");
+                    System.exit(1);
+            }
+        } finally {
+            shutdown();
+        }
+    }
+
+    private void sendBurstBatched(int count) throws Exception {
+        long start = System.currentTimeMillis();
+        List<String> batch = new ArrayList<>(10);
+        for (int i = 0; i < count; i++) {
+            long seq = sequence.incrementAndGet();
+            batch.add(mapper.writeValueAsString(generateCDR(seq)));
+            if (batch.size() == 10) {
+                sendBatch(batch);
+                batch.clear();
+            }
+        }
+        if (!batch.isEmpty()) {
+            sendBatch(batch);
+        }
+        long elapsed = System.currentTimeMillis() - start;
+        System.out.printf("Sent %d CDRs in %d ms (%.0f rec/sec)%n",
+                count, elapsed, count * 1000.0 / Math.max(elapsed, 1));
+    }
+
+    private void sendContinuousStreamHeadless(int rps, int durationSeconds) throws Exception {
+        long endTime = System.currentTimeMillis() + (long) durationSeconds * 1000;
+        int batchSize = Math.min(10, Math.max(rps, 1));
+        long intervalMs = (long) batchSize * 1000 / Math.max(rps, 1);
+        long totalSent = 0;
+
+        while (System.currentTimeMillis() < endTime) {
+            List<String> batch = new ArrayList<>(batchSize);
+            for (int i = 0; i < batchSize; i++) {
+                long seq = sequence.incrementAndGet();
+                batch.add(mapper.writeValueAsString(generateCDR(seq)));
+            }
+            sendBatch(batch);
+            totalSent += batchSize;
+            Thread.sleep(intervalMs);
+        }
+        System.out.printf("Stream complete. Sent %d CDRs at ~%d rps over %ds.%n",
+                totalSent, rps, durationSeconds);
+    }
+
+    private static final int SQS_MAX_BATCH_SEND_SIZE = 10;
+
+    private void sendBatch(List<String> bodies) {
+        List<SendMessageBatchRequestEntry> entries = new ArrayList<>(bodies.size());
+        for (int i = 0; i < bodies.size(); i++) {
+            entries.add(SendMessageBatchRequestEntry.builder()
+                    .id(String.valueOf(i))
+                    .messageBody(bodies.get(i))
+                    .build());
+        }
+        SendMessageBatchRequest request = SendMessageBatchRequest.builder()
+                .queueUrl(queueUrl)
+                .entries(entries)
+                .build();
+        sqsClient.sendMessageBatch(request);
+        logger.debug("Published batch of {} messages", bodies.size());
     }
 
     public void runInteractive() {
