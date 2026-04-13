@@ -35,17 +35,17 @@ import java.util.concurrent.atomic.AtomicLong;
  * <ul>
  *   <li>Long-polling (WaitTimeSeconds up to 20) — reduces empty API calls and cost</li>
  *   <li>One Snowflake channel per consumer thread</li>
- *   <li>Batch delete (DeleteMessageBatch) — only after all rows in the batch are appended</li>
+ *   <li>Batch delete (DeleteMessageBatch) — only after Snowflake confirms the batch is committed</li>
  *   <li>Shutdown interrupts the blocking receive call by closing the SqsClient immediately</li>
  *   <li>Same retry strategy as the Pub/Sub consumer: 401/403 fail, 409 reopen, 429/5xx backoff</li>
  *   <li>Periodic channel health checks every 30 seconds</li>
  * </ul>
  *
- * <p><b>At-least-once delivery:</b> if the process crashes after a successful
- * {@code appendRow} but before {@code DeleteMessageBatch}, SQS will redeliver
- * those messages after the visibility timeout expires. The Snowpipe Streaming
- * channel's {@code getLatestCommittedOffsetToken()} is used on restart to skip
- * rows whose offset tokens are already committed.</p>
+ * <p><b>At-least-once delivery:</b> each batch waits for
+ * {@code getLatestCommittedOffsetToken()} to reach the batch's last offset token
+ * before deleting messages from SQS. If the process crashes before
+ * {@code DeleteMessageBatch}, SQS redelivers those messages after the visibility
+ * timeout and the channel's committed offset prevents re-insertion.</p>
  */
 public class CustomSQSConsumer implements Runnable {
 
@@ -60,6 +60,9 @@ public class CustomSQSConsumer implements Runnable {
 
     private static final long HEALTH_CHECK_INTERVAL_MS = 30_000;
     private long lastHealthCheckMs = 0;
+
+    private static final long COMMIT_POLL_INTERVAL_MS = 100;
+    private static final long COMMIT_TIMEOUT_MS = 60_000;
 
     private final String queueUrl;
     private final int maxMessages;
@@ -139,23 +142,25 @@ public class CustomSQSConsumer implements Runnable {
                 }
 
                 // Append all pending rows to Snowflake, then batch-delete from SQS
-                List<DeleteMessageBatchRequestEntry> deleteEntries = new ArrayList<>();
+                List<Map<String, Object>> rows = new ArrayList<>(pending.size());
+                List<DeleteMessageBatchRequestEntry> deleteEntries = new ArrayList<>(pending.size());
                 int entryIndex = 0;
                 long batchStart = System.currentTimeMillis();
 
                 for (Message message : pending) {
-                    String body = message.body();
-                    Map<String, Object> row = parseRecord(body);
-                    String offsetToken = String.valueOf(offsetCounter.incrementAndGet());
-                    appendRowWithRetry(row, offsetToken);
-
+                    rows.add(parseRecord(message.body()));
                     deleteEntries.add(DeleteMessageBatchRequestEntry.builder()
                             .id(String.valueOf(entryIndex++))
                             .receiptHandle(message.receiptHandle())
                             .build());
                 }
 
-                // Delete only after ALL appends in this batch have succeeded
+                // Single batch call — buffers all rows at once before the SDK flushes
+                String lastOffsetToken = appendRowsWithRetry(rows);
+
+                // Wait for Snowflake to confirm the batch is committed before
+                // deleting from SQS — this is what makes delivery at-least-once
+                waitForCommit(lastOffsetToken);
                 deleteMessages(deleteEntries);
                 long batchMs = System.currentTimeMillis() - batchStart;
                 long total = totalRowsProcessed.addAndGet(pending.size());
@@ -202,15 +207,28 @@ public class CustomSQSConsumer implements Runnable {
         }
     }
 
-    private void appendRowWithRetry(Map<String, Object> row, String offsetToken) {
+    /**
+     * Appends a batch of rows to the Snowflake channel in a single call,
+     * with retries for transient errors. Assigns contiguous offset tokens to
+     * the batch; on 409 (channel invalidated), reopens the channel and
+     * re-assigns tokens from the newly committed position before retrying.
+     *
+     * @return the last offset token assigned to the batch (used for {@link #waitForCommit})
+     */
+    private String appendRowsWithRetry(List<Map<String, Object>> rows) {
         long backoffMs = INITIAL_BACKOFF_MS;
         int attempt = 0;
+
+        // Assign contiguous offset token range for this batch
+        long base = offsetCounter.getAndAdd(rows.size());
+        String firstOffsetToken = String.valueOf(base + 1);
+        String lastOffsetToken = String.valueOf(base + rows.size());
 
         while (true) {
             attempt++;
             try {
-                channel.appendRow(row, offsetToken);
-                return;
+                channel.appendRows(rows, firstOffsetToken, lastOffsetToken);
+                return lastOffsetToken;
             } catch (SFException e) {
                 int httpStatus = e.getHttpStatusCode();
 
@@ -222,6 +240,10 @@ public class CustomSQSConsumer implements Runnable {
                 if (httpStatus == 409) {
                     logger.warn("Channel invalidated (HTTP 409). Reopening. Attempt {}", attempt);
                     reopenChannel();
+                    // Reassign offset tokens from the new committed position
+                    base = offsetCounter.getAndAdd(rows.size());
+                    firstOffsetToken = String.valueOf(base + 1);
+                    lastOffsetToken = String.valueOf(base + rows.size());
                     continue;
                 }
 
@@ -249,6 +271,35 @@ public class CustomSQSConsumer implements Runnable {
                 throw e;
             }
         }
+    }
+
+    /**
+     * Polls {@code getLatestCommittedOffsetToken()} until the channel confirms
+     * the given offset token (or higher) has been committed to Snowflake.
+     * Times out after {@link #COMMIT_TIMEOUT_MS} with a warning; delivery is
+     * still at-least-once because SQS will redeliver if the process crashes
+     * before {@code DeleteMessageBatch} completes.
+     */
+    private void waitForCommit(String targetOffsetToken) {
+        long target = Long.parseLong(targetOffsetToken);
+        long deadline = System.currentTimeMillis() + COMMIT_TIMEOUT_MS;
+
+        while (System.currentTimeMillis() < deadline) {
+            String committed = channel.getLatestCommittedOffsetToken();
+            if (committed != null && Long.parseLong(committed) >= target) {
+                return;
+            }
+            try {
+                Thread.sleep(COMMIT_POLL_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Interrupted while waiting for commit", e);
+            }
+        }
+
+        throw new RuntimeException(
+                "Timed out after " + COMMIT_TIMEOUT_MS + "ms waiting for offset " + targetOffsetToken
+                        + " to be committed. Aborting batch — SQS messages will be redelivered after visibility timeout.");
     }
 
     private void reopenChannel() {
