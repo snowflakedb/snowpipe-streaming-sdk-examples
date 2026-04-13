@@ -16,6 +16,7 @@ A complete Maven project demonstrating the Snowpipe Streaming SDK in Java. Inclu
 - Full example code with proper error handling
 - Comprehensive setup instructions
 - Sample configuration files
+- **[Monitoring & Abort](./java-example/monitoring)** — Monitor channel status, track offset lag, inject errors, and abort on error increase
 
 ### [Python Example](./python-example)
 A complete Python project demonstrating the Snowpipe Streaming SDK in Python. Includes:
@@ -23,6 +24,7 @@ A complete Python project demonstrating the Snowpipe Streaming SDK in Python. In
 - Clean, well-documented example code
 - Setup instructions with virtual environment
 - Sample configuration files
+- **[Monitoring & Abort](./python-example/monitoring)** — Monitor channel status, track offset lag, inject errors, abort on error increase, and optional live matplotlib plotting
 
 ## Getting Started
 
