@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Generates fake user data rows using Java Faker.
@@ -24,7 +25,8 @@ public class FakeDataGenerator {
         row.put("phone_number", faker.phoneNumber().phoneNumber());
         row.put("address", faker.address().fullAddress());
         row.put("date_of_birth", randomDateOfBirth().toString());
-        row.put("registration_date", LocalDateTime.now().toString());
+        row.put("registration_date", faker.date().past(90, TimeUnit.DAYS)
+                .toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime().toString());
         row.put("city", faker.address().city());
         row.put("state", faker.address().state());
         row.put("country", faker.address().country());

@@ -189,7 +189,10 @@ def main(total_rows: int = TOTAL_ROWS, send_interval_ms: int = SEND_INTERVAL_MS,
     print(f"Waiting for commits to catch up to last sent... {tracker.sent_highest_offset}")
 
     def token_reached(latest_token):
-        return latest_token is not None and int(latest_token) >= tracker.sent_highest_offset
+        try:
+            return latest_token is not None and int(latest_token) >= tracker.sent_highest_offset
+        except (TypeError, ValueError):
+            return False
 
     channel.wait_for_commit(token_reached, timeout_seconds=15)
 
