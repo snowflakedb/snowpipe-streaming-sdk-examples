@@ -1,6 +1,6 @@
 ---
-name: ssv2-AI-webinar
-description: "End-to-end SSv2 + AI demo for webinars. Sets up Snowpipe Streaming V2 with background data generation, deploys a live Streamlit dashboard, then layers on a Semantic View and Cortex Agent so the presenter can do natural-language queries on live-streaming data in Snowsight. Triggers: ssv2 ai webinar, ssv2 webinar demo, ssv2 ai demo, streaming ai demo, snowpipe streaming webinar, ssv2 cortex agent demo, ssv2 semantic view demo."
+name: snowpipe-streaming-ai-webinar
+description: "End-to-end Snowpipe Streaming HPA + AI demo for webinars. Sets up Snowpipe Streaming high-performance architecture (HPA) with background data generation, deploys a live Streamlit dashboard, then layers on a Semantic View and Cortex Agent so the presenter can do natural-language queries on live-streaming data in Snowsight. Triggers: snowpipe streaming ai webinar, snowpipe streaming webinar demo, snowpipe streaming ai demo, streaming ai demo, snowpipe streaming webinar, snowpipe streaming cortex agent demo, snowpipe streaming semantic view demo."
 ---
 
 <!-- Copyright (c) 2026 Snowflake Inc. Licensed under Apache 2.0. See LICENSE. -->
@@ -9,17 +9,17 @@ description: "End-to-end SSv2 + AI demo for webinars. Sets up Snowpipe Streaming
 
 Use this skill when the user wants to:
 
-- Run a webinar or live demo showing Snowpipe Streaming V2 + Cortex AI together
+- Run a webinar or live demo showing Snowpipe Streaming HPA + Cortex AI together
 - Demo real-time streaming data with natural-language querying via Cortex Agent
 - Set up an end-to-end pipeline: streaming ingestion -> live dashboard -> semantic view -> Cortex Agent
 
-This is **not** for a quick SSv2 tryout (use `ssv2-quickstart` for that). This skill is specifically for a **presentation-ready demo** that showcases streaming + AI.
+This is **not** for a quick Snowpipe Streaming HPA tryout (use `snowpipe-streaming-quickstart` for that). This skill is specifically for a **presentation-ready demo** that showcases streaming + AI.
 
 ## What this skill provides
 
 A fully automated, presentation-ready demo pipeline:
 
-1. **Streaming setup + dashboard** (Steps 0-5) — Same as SSv2 Quickstart: platform detection, RSA keys, Snowflake objects, Python venv. Step 5 deploys the Streamlit dashboard AND starts background streaming **in parallel**
+1. **Streaming setup + dashboard** (Steps 0-5) — Same as Snowpipe Streaming Quickstart: platform detection, RSA keys, Snowflake objects, Python venv. Step 5 deploys the Streamlit dashboard AND starts background streaming **in parallel**
 2. **Semantic View** (Step 6) — Creates a semantic view on the streaming table via direct SQL with rich synonyms, computed dimensions, and 8 metrics
 3. **Cortex Agent** (Step 7) — Creates a Cortex Agent via direct SQL with `cortex_analyst_text_to_sql` pointed at the semantic view
 4. **Showcase queries** (Step 8) — Runs 4 live queries against the semantic view to prove everything works with real streaming data
@@ -58,12 +58,12 @@ Steps 6 and 7 use direct `CREATE SEMANTIC VIEW` and `CREATE AGENT` SQL rather th
    - **Step 1:** Run platform checks (Bash) and Snowflake context query (SQL) as **two parallel tool calls**
    - **Step 2:** Run both `openssl genrsa...` and the pubkey extraction in **one single Bash call**
    - **Step 3:** Run all CREATE/GRANT statements in **one single SQL call**
-   - **Steps 4a:** Write `profile.json` and `ssv2_demo.py` as **two parallel FileWrite calls**
+   - **Steps 4a:** Write `profile.json` and `streaming_demo.py` as **two parallel FileWrite calls**
    - **Step 5 parallel launch:** CREATE STAGE (SQL), sed template to streamlit_app.py (Bash), AND start streaming (Bash with `run_in_background=true`) as **three parallel tool calls**
 
 3. **Use parallel tool calls** whenever operations are independent.
 
-4. **Log all SQL to `ssv2_demo_sql.log`** — Every SQL execution gets appended to a local log file with step headers and timestamps.
+4. **Log all SQL to `streaming_demo_sql.log`** — Every SQL execution gets appended to a local log file with step headers and timestamps.
 
 5. **Do NOT ask about demo duration** — This skill always runs streaming for 30 minutes in the background. Skip that question from the quickstart preferences.
 
@@ -73,7 +73,7 @@ Steps 6 and 7 use direct `CREATE SEMANTIC VIEW` and `CREATE AGENT` SQL rather th
 
 **Before doing anything**, confirm the user wants to run the full webinar demo:
 
-> "This will run the **SSv2 AI Webinar Demo** -- a fully automated pipeline that:
+> "This will run the **Snowpipe Streaming AI Webinar Demo** -- a fully automated pipeline that:
 > - Creates a demo database, schema, table, user, and role in Snowflake
 > - Generates RSA keys and a Python virtual environment locally
 > - Deploys a live Streamlit dashboard to monitor data in real-time
@@ -95,7 +95,7 @@ If the user says no, stop gracefully.
 
 **Tool call 1 -- Bash** (platform checks + initialize SQL log):
 ```bash
-echo "=== OS ==="; uname -s 2>/dev/null || echo "WINDOWS"; echo "=== Python ==="; python3 --version 2>/dev/null || python --version 2>/dev/null || echo "NOT FOUND"; echo "=== Working Directory ==="; pwd; echo "=== Home Directory ==="; echo $HOME; echo "-- SSV2 AI Webinar SQL Log" > ssv2_demo_sql.log; echo "-- Generated by Cortex Code SSV2 AI Webinar Skill" >> ssv2_demo_sql.log; echo "" >> ssv2_demo_sql.log
+echo "=== OS ==="; uname -s 2>/dev/null || echo "WINDOWS"; echo "=== Python ==="; python3 --version 2>/dev/null || python --version 2>/dev/null || echo "NOT FOUND"; echo "=== Working Directory ==="; pwd; echo "=== Home Directory ==="; echo $HOME; echo "-- Snowpipe Streaming AI Webinar SQL Log" > streaming_demo_sql.log; echo "-- Generated by Cortex Code Snowpipe Streaming AI Webinar Skill" >> streaming_demo_sql.log; echo "" >> streaming_demo_sql.log
 ```
 
 **Tool call 2 -- SQL** (Snowflake context):
@@ -124,8 +124,8 @@ Store the working Python command (`python3` or `python`) and all Snowflake conte
 #### 1b. Ask the user for preferences
 
 Ask the user:
-- Which **database** and **schema** to use (default: `SSV2_WEBINAR_DB.SSV2_SCHEMA`)
-- A **table name** for the landing table (default: `SSV2_WEBINAR_USERS`)
+- Which **database** and **schema** to use (default: `STREAMING_WEBINAR_DB.STREAMING_SCHEMA`)
+- A **table name** for the landing table (default: `STREAMING_WEBINAR_USERS`)
 - Whether to **deploy a Streamlit dashboard** (default: yes)
 
 Store the dashboard preference as a boolean (`DEPLOY_STREAMLIT`). If the user declines, Step 5 will skip the dashboard deployment and only start the background streaming.
@@ -156,7 +156,7 @@ Then **silently read** `rsa_key.pub` using the Read tool. **Do NOT echo, cat, or
 
 **Purpose:** Create all Snowflake objects in one SQL call.
 
-**IMPORTANT — Key material in SQL:** The `ALTER USER ... SET RSA_PUBLIC_KEY` statement contains the public key value. When logging this SQL to `ssv2_demo_sql.log`, replace the actual key value with `<REDACTED>`. When presenting SQL output to the user, do NOT display the full ALTER USER statement — just confirm it succeeded.
+**IMPORTANT — Key material in SQL:** The `ALTER USER ... SET RSA_PUBLIC_KEY` statement contains the public key value. When logging this SQL to `streaming_demo_sql.log`, replace the actual key value with `<REDACTED>`. When presenting SQL output to the user, do NOT display the full ALTER USER statement — just confirm it succeeded.
 
 ```sql
 CREATE DATABASE IF NOT EXISTS <DATABASE>;
@@ -177,16 +177,16 @@ CREATE OR REPLACE TABLE <DATABASE>.<SCHEMA>.<TABLE_NAME> (
     country              VARCHAR(100),
     order_amount         NUMBER(10,2)
 );
-CREATE ROLE IF NOT EXISTS SSV2_DEMO_ROLE;
-CREATE USER IF NOT EXISTS SSV2_DEMO_USER DEFAULT_ROLE = SSV2_DEMO_ROLE;
-GRANT ROLE SSV2_DEMO_ROLE TO USER SSV2_DEMO_USER;
-ALTER USER SSV2_DEMO_USER SET RSA_PUBLIC_KEY = '<PUBK_VALUE>';
-GRANT USAGE ON DATABASE <DATABASE> TO ROLE SSV2_DEMO_ROLE;
-GRANT USAGE ON SCHEMA <DATABASE>.<SCHEMA> TO ROLE SSV2_DEMO_ROLE;
-GRANT USAGE ON WAREHOUSE <WAREHOUSE> TO ROLE SSV2_DEMO_ROLE;
-GRANT OWNERSHIP ON TABLE <DATABASE>.<SCHEMA>.<TABLE_NAME> TO ROLE SSV2_DEMO_ROLE COPY CURRENT GRANTS;
+CREATE ROLE IF NOT EXISTS STREAMING_DEMO_ROLE;
+CREATE USER IF NOT EXISTS STREAMING_DEMO_USER DEFAULT_ROLE = STREAMING_DEMO_ROLE;
+GRANT ROLE STREAMING_DEMO_ROLE TO USER STREAMING_DEMO_USER;
+ALTER USER STREAMING_DEMO_USER SET RSA_PUBLIC_KEY = '<PUBK_VALUE>';
+GRANT USAGE ON DATABASE <DATABASE> TO ROLE STREAMING_DEMO_ROLE;
+GRANT USAGE ON SCHEMA <DATABASE>.<SCHEMA> TO ROLE STREAMING_DEMO_ROLE;
+GRANT USAGE ON WAREHOUSE <WAREHOUSE> TO ROLE STREAMING_DEMO_ROLE;
+GRANT OWNERSHIP ON TABLE <DATABASE>.<SCHEMA>.<TABLE_NAME> TO ROLE STREAMING_DEMO_ROLE COPY CURRENT GRANTS;
 GRANT SELECT ON TABLE <DATABASE>.<SCHEMA>.<TABLE_NAME> TO ROLE <CURRENT_ROLE>;
-DESC USER SSV2_DEMO_USER;
+DESC USER STREAMING_DEMO_USER;
 ```
 
 Look for `RSA_PUBLIC_KEY` in the DESC USER output to confirm it was set.
@@ -195,33 +195,33 @@ Look for `RSA_PUBLIC_KEY` in the DESC USER output to confirm it was set.
 
 ### Step 4 -- Write config files, demo script, create Python venv
 
-#### 4a. Write profile.json and ssv2_demo.py in parallel
+#### 4a. Write profile.json and streaming_demo.py in parallel
 
 **FileWrite 1 -- profile.json:**
 
 ```json
 {
-    "user": "SSV2_DEMO_USER",
+    "user": "STREAMING_DEMO_USER",
     "account": "<ACCOUNT_IDENTIFIER>",
     "url": "https://<ACCOUNT_IDENTIFIER>.snowflakecomputing.com:443",
     "private_key_file": "rsa_key.p8",
-    "role": "SSV2_DEMO_ROLE"
+    "role": "STREAMING_DEMO_ROLE"
 }
 ```
 
-**FileWrite 2 -- ssv2_demo.py:**
+**FileWrite 2 -- streaming_demo.py:**
 
 Use the demo script from the **"Demo script reference"** section below. Key difference from quickstart: `DEMO_MINUTES = 30` (runs for 30 minutes to keep data flowing throughout the webinar).
 
 #### 4b. Create Python virtual environment and install dependencies
 
 ```bash
-<PYTHON_CMD> -m venv ssv2_venv && source ssv2_venv/bin/activate && pip install --upgrade pip && pip install snowpipe-streaming faker && python -c "from snowflake.ingest.streaming import StreamingIngestClient; print('SDK OK')" && python -c "from faker import Faker; print('Faker OK')"
+<PYTHON_CMD> -m venv streaming_venv && source streaming_venv/bin/activate && pip install --upgrade pip && pip install snowpipe-streaming faker && python -c "from snowflake.ingest.streaming import StreamingIngestClient; print('SDK OK')" && python -c "from faker import Faker; print('Faker OK')"
 ```
 
 ---
 
-### Demo script reference (ssv2_demo.py)
+### Demo script reference (streaming_demo.py)
 
 ```python
 import time
@@ -254,7 +254,7 @@ print(f"  Pipe:     {PIPE} (default auto-created pipe)")
 
 try:
     client = StreamingIngestClient(
-        "SSV2_WEBINAR_CLIENT",
+        "STREAMING_WEBINAR_CLIENT",
         DATABASE,
         SCHEMA,
         PIPE,
@@ -269,7 +269,7 @@ except Exception as e:
 # --- Open channel ---
 print(f"\nOpening channel...")
 try:
-    channel, status = client.open_channel("SSV2_WEBINAR_CHANNEL")
+    channel, status = client.open_channel("STREAMING_WEBINAR_CHANNEL")
     print(f"  Channel: {status.channel_name}")
     print(f"  Status:  {status.status_code}")
 except Exception as e:
@@ -361,7 +361,7 @@ print("\nStreaming complete! (Background process ending)")
 Run **only** the streaming script in the background:
 
 ```bash
-source ssv2_venv/bin/activate && python ssv2_demo.py
+source streaming_venv/bin/activate && python streaming_demo.py
 ```
 
 Use `run_in_background=true`. Tell the user:
@@ -374,7 +374,7 @@ Use `run_in_background=true`. Tell the user:
 
 ##### 5a. Check for pre-baked Streamlit template
 
-The template lives at `~/.snowflake/cortex/skills/ssv2-AI-webinar/streamlit_app.py.template`. Check if it exists using the Read tool. If it exists, proceed to 5b. If it doesn't exist, fall back to writing the full Streamlit app inline (see the Templates section at the end of this skill for the full source).
+The template lives at `~/.snowflake/cortex/skills/snowpipe-streaming-ai-webinar/streamlit_app.py.template`. Check if it exists using the Read tool. If it exists, proceed to 5b. If it doesn't exist, fall back to writing the full Streamlit app inline (see the Templates section at the end of this skill for the full source).
 
 ##### 5b. Create stage, prepare Streamlit app, AND start streaming -- all in parallel
 
@@ -382,20 +382,20 @@ The template lives at `~/.snowflake/cortex/skills/ssv2-AI-webinar/streamlit_app.
 
 **Tool call 1 -- SQL** (create stage):
 ```sql
-CREATE STAGE IF NOT EXISTS <DATABASE>.<SCHEMA>.SSV2_STREAMLIT_STAGE
+CREATE STAGE IF NOT EXISTS <DATABASE>.<SCHEMA>.STREAMING_STREAMLIT_STAGE
     DIRECTORY = (ENABLE = TRUE);
 ```
 
 **Tool call 2 -- Bash** (copy template and substitute placeholders):
 ```bash
-sed -e 's/{{DATABASE}}/<DATABASE>/g' -e 's/{{SCHEMA}}/<SCHEMA>/g' -e 's/{{TABLE_NAME}}/<TABLE_NAME>/g' ~/.snowflake/cortex/skills/ssv2-AI-webinar/streamlit_app.py.template > <LOCAL_PATH>/streamlit_app.py
+sed -e 's/{{DATABASE}}/<DATABASE>/g' -e 's/{{SCHEMA}}/<SCHEMA>/g' -e 's/{{TABLE_NAME}}/<TABLE_NAME>/g' ~/.snowflake/cortex/skills/snowpipe-streaming-ai-webinar/streamlit_app.py.template > <LOCAL_PATH>/streamlit_app.py
 ```
 
 Replace `<DATABASE>`, `<SCHEMA>`, `<TABLE_NAME>` in the sed command with the actual values collected in Step 1.
 
 **Tool call 3 -- Bash** (start streaming in background with `run_in_background=true`):
 ```bash
-source ssv2_venv/bin/activate && python ssv2_demo.py
+source streaming_venv/bin/activate && python streaming_demo.py
 ```
 
 **IMPORTANT:** Use the Bash tool with `run_in_background=true` for tool call 3 so it does not block. The script will run for 30 minutes.
@@ -405,14 +405,14 @@ source ssv2_venv/bin/activate && python ssv2_demo.py
 After 5b completes (stage created + streamlit file prepared), upload the file:
 
 ```bash
-snow stage copy <LOCAL_PATH>/streamlit_app.py @<DATABASE>.<SCHEMA>.SSV2_STREAMLIT_STAGE --overwrite
+snow stage copy <LOCAL_PATH>/streamlit_app.py @<DATABASE>.<SCHEMA>.STREAMING_STREAMLIT_STAGE --overwrite
 ```
 
 ##### 5d. Create Streamlit app and verify
 
 ```sql
-CREATE OR REPLACE STREAMLIT <DATABASE>.<SCHEMA>.SSV2_STREAMING_MONITOR
-    ROOT_LOCATION = '@<DATABASE>.<SCHEMA>.SSV2_STREAMLIT_STAGE'
+CREATE OR REPLACE STREAMLIT <DATABASE>.<SCHEMA>.STREAMING_MONITOR
+    ROOT_LOCATION = '@<DATABASE>.<SCHEMA>.STREAMING_STREAMLIT_STAGE'
     MAIN_FILE = 'streamlit_app.py'
     QUERY_WAREHOUSE = '<WAREHOUSE>';
 SHOW STREAMLITS IN SCHEMA <DATABASE>.<SCHEMA>;
@@ -425,7 +425,7 @@ SHOW STREAMLITS IN SCHEMA <DATABASE>.<SCHEMA>;
 > **To access the dashboard:**
 > 1. Open Snowsight in your browser
 > 2. Navigate to **Projects > Streamlit** in the left sidebar
-> 3. Find and click **SSV2_STREAMING_MONITOR**
+> 3. Find and click **STREAMING_MONITOR**
 >
 > You should see rows appearing within 5-10 seconds. While you explore the dashboard, I'll set up the AI layer."
 
@@ -452,13 +452,13 @@ If `row_count` is 0, wait 10 seconds and retry (up to 3 times). If still 0, warn
 Run this **single SQL call**:
 
 ```sql
-CREATE OR REPLACE SEMANTIC VIEW <DATABASE>.<SCHEMA>.SSV2_STREAMING_ANALYTICS
+CREATE OR REPLACE SEMANTIC VIEW <DATABASE>.<SCHEMA>.STREAMING_ANALYTICS
 
   TABLES (
     users AS <DATABASE>.<SCHEMA>.<TABLE_NAME>
       PRIMARY KEY (user_id)
       WITH SYNONYMS = ('registrations', 'customers', 'orders')
-      COMMENT = 'Real-time user registrations and orders streaming in via Snowpipe Streaming V2'
+      COMMENT = 'Real-time user registrations and orders streaming in via Snowpipe Streaming HPA'
   )
 
   FACTS (
@@ -540,8 +540,8 @@ CREATE OR REPLACE SEMANTIC VIEW <DATABASE>.<SCHEMA>.SSV2_STREAMING_ANALYTICS
       COMMENT = 'Number of distinct states represented'
   )
 
-  COMMENT = 'Semantic view for real-time streaming user registration and order data ingested via Snowpipe Streaming V2. Data arrives continuously -- counts and totals grow over time.'
-  AI_SQL_GENERATION 'This data represents real-time user registrations with associated orders streaming via Snowpipe Streaming V2. Each row is one user with one order. The data is continuously growing as new rows arrive every few seconds. When asked about trends over time, use the registration_date dimension. When asked about demographics, use the age_group dimension. When asked about geography, use country, state, or city dimensions. For revenue questions, use the total_revenue metric (SUM of order_amount). For user count questions, use the total_users metric (COUNT of user_id). For average order questions, use the avg_order_value metric. The order_amount column stores dollar amounts as NUMBER(10,2). Always use metric and dimension names defined in this semantic view rather than raw column names.';
+  COMMENT = 'Semantic view for real-time streaming user registration and order data ingested via Snowpipe Streaming HPA. Data arrives continuously -- counts and totals grow over time.'
+  AI_SQL_GENERATION 'This data represents real-time user registrations with associated orders streaming via Snowpipe Streaming HPA. Each row is one user with one order. The data is continuously growing as new rows arrive every few seconds. When asked about trends over time, use the registration_date dimension. When asked about demographics, use the age_group dimension. When asked about geography, use country, state, or city dimensions. For revenue questions, use the total_revenue metric (SUM of order_amount). For user count questions, use the total_users metric (COUNT of user_id). For average order questions, use the avg_order_value metric. The order_amount column stores dollar amounts as NUMBER(10,2). Always use metric and dimension names defined in this semantic view rather than raw column names.';
 ```
 
 #### 6c. Verify the semantic view
@@ -552,7 +552,7 @@ SHOW SEMANTIC VIEWS IN SCHEMA <DATABASE>.<SCHEMA>;
 
 Tell the user:
 
-> "Semantic view `SSV2_STREAMING_ANALYTICS` created. Cortex Analyst can now answer natural-language questions about the streaming data."
+> "Semantic view `STREAMING_ANALYTICS` created. Cortex Analyst can now answer natural-language questions about the streaming data."
 
 ---
 
@@ -563,15 +563,15 @@ Tell the user:
 Run this **single SQL call**:
 
 ```sql
-CREATE OR REPLACE AGENT <DATABASE>.<SCHEMA>.SSV2_STREAMING_AGENT
-  COMMENT = 'AI agent for exploring real-time streaming user and order data via Snowpipe Streaming V2'
+CREATE OR REPLACE AGENT <DATABASE>.<SCHEMA>.STREAMING_AGENT
+  COMMENT = 'AI agent for exploring real-time streaming user and order data via Snowpipe Streaming HPA'
   FROM SPECIFICATION $$
 models:
   orchestration: auto
 instructions:
   system: >
     You are a streaming data analyst. You help explore real-time user registration
-    and e-commerce order data that is being ingested via Snowpipe Streaming V2.
+    and e-commerce order data that is being ingested via Snowpipe Streaming HPA.
     The data includes user demographics (name, email, city, state, country, date of birth),
     registration timestamps, and order amounts. New data arrives every few seconds,
     so counts and totals are continuously growing.
@@ -591,7 +591,7 @@ tools:
         geographic distribution, demographics, and trends over time.
 tool_resources:
   StreamingAnalytics:
-    semantic_view: "<DATABASE>.<SCHEMA>.SSV2_STREAMING_ANALYTICS"
+    semantic_view: "<DATABASE>.<SCHEMA>.STREAMING_ANALYTICS"
 $$;
 ```
 
@@ -605,7 +605,7 @@ SHOW AGENTS IN SCHEMA <DATABASE>.<SCHEMA>;
 
 Tell the user:
 
-> "Cortex Agent `SSV2_STREAMING_AGENT` created and pointed at the semantic view. You can interact with it in Snowsight or ask questions here."
+> "Cortex Agent `STREAMING_AGENT` created and pointed at the semantic view. You can interact with it in Snowsight or ask questions here."
 
 ---
 
@@ -617,7 +617,7 @@ Tell the user:
 
 ```sql
 SELECT * FROM SEMANTIC_VIEW(
-    <DATABASE>.<SCHEMA>.SSV2_STREAMING_ANALYTICS
+    <DATABASE>.<SCHEMA>.STREAMING_ANALYTICS
     METRICS users.total_users, users.total_revenue, users.avg_order_value
 );
 ```
@@ -628,7 +628,7 @@ Tell the user the results. Note that these numbers are growing in real-time.
 
 ```sql
 SELECT * FROM SEMANTIC_VIEW(
-    <DATABASE>.<SCHEMA>.SSV2_STREAMING_ANALYTICS
+    <DATABASE>.<SCHEMA>.STREAMING_ANALYTICS
     DIMENSIONS users.country
     METRICS users.total_revenue, users.total_users
 )
@@ -640,7 +640,7 @@ LIMIT 5;
 
 ```sql
 SELECT * FROM SEMANTIC_VIEW(
-    <DATABASE>.<SCHEMA>.SSV2_STREAMING_ANALYTICS
+    <DATABASE>.<SCHEMA>.STREAMING_ANALYTICS
     DIMENSIONS users.age_group
     METRICS users.total_users, users.avg_order_value
 )
@@ -651,7 +651,7 @@ ORDER BY avg_order_value DESC;
 
 ```sql
 SELECT * FROM SEMANTIC_VIEW(
-    <DATABASE>.<SCHEMA>.SSV2_STREAMING_ANALYTICS
+    <DATABASE>.<SCHEMA>.STREAMING_ANALYTICS
     DIMENSIONS users.registration_hour
     METRICS users.total_users, users.total_revenue
 )
@@ -674,13 +674,13 @@ After running the queries, tell the user:
 
 **Present this to the user:**
 
-> **Setup Complete! Your SSv2 AI Webinar Demo is Ready.**
+> **Setup Complete! Your Snowpipe Streaming AI Webinar Demo is Ready.**
 >
 > You now have:
 > - **Streaming pipeline** -- Data flowing into `<DATABASE>.<SCHEMA>.<TABLE_NAME>` (~10 rows/second)
-> - **Live dashboard** -- Streamlit app `SSV2_STREAMING_MONITOR` showing real-time metrics
-> - **Semantic view** -- `SSV2_STREAMING_ANALYTICS` for natural-language querying
-> - **Cortex Agent** -- `SSV2_STREAMING_AGENT` ready for conversational analytics
+> - **Live dashboard** -- Streamlit app `STREAMING_MONITOR` showing real-time metrics
+> - **Semantic view** -- `STREAMING_ANALYTICS` for natural-language querying
+> - **Cortex Agent** -- `STREAMING_AGENT` ready for conversational analytics
 >
 > **Demo flow for your presentation:**
 >
@@ -688,7 +688,7 @@ After running the queries, tell the user:
 >
 > 2. **Open Cortex Agent in Snowsight:**
 >    - Navigate to **AI & ML > Cortex Agents** (or **Snowflake Intelligence > Agents**)
->    - Find and open **SSV2_STREAMING_AGENT**
+>    - Find and open **STREAMING_AGENT**
 >    - Try questions like "How many users have registered?" or "What is revenue by country?"
 >
 > 3. **Key demo moments:**
@@ -727,16 +727,16 @@ First, check if the streaming script is still running. If it is, kill the backgr
 
 ```sql
 -- AI layer
-DROP AGENT IF EXISTS <DATABASE>.<SCHEMA>.SSV2_STREAMING_AGENT;
-DROP SEMANTIC VIEW IF EXISTS <DATABASE>.<SCHEMA>.SSV2_STREAMING_ANALYTICS;
+DROP AGENT IF EXISTS <DATABASE>.<SCHEMA>.STREAMING_AGENT;
+DROP SEMANTIC VIEW IF EXISTS <DATABASE>.<SCHEMA>.STREAMING_ANALYTICS;
 -- Streamlit app and stage
-DROP STREAMLIT IF EXISTS <DATABASE>.<SCHEMA>.SSV2_STREAMING_MONITOR;
-DROP STAGE IF EXISTS <DATABASE>.<SCHEMA>.SSV2_STREAMLIT_STAGE;
+DROP STREAMLIT IF EXISTS <DATABASE>.<SCHEMA>.STREAMING_MONITOR;
+DROP STAGE IF EXISTS <DATABASE>.<SCHEMA>.STREAMING_STREAMLIT_STAGE;
 -- Schema cascade drops table and auto-created pipe
 DROP SCHEMA IF EXISTS <DATABASE>.<SCHEMA>;
 -- Demo user and role
-DROP USER IF EXISTS SSV2_DEMO_USER;
-DROP ROLE IF EXISTS SSV2_DEMO_ROLE;
+DROP USER IF EXISTS STREAMING_DEMO_USER;
+DROP ROLE IF EXISTS STREAMING_DEMO_ROLE;
 -- Database (only if created for this demo)
 DROP DATABASE IF EXISTS <DATABASE>;
 ```
@@ -744,7 +744,7 @@ DROP DATABASE IF EXISTS <DATABASE>;
 **If option 2**, also run local cleanup:
 
 ```bash
-deactivate 2>/dev/null; rm -rf ssv2_venv; rm -f rsa_key.p8 rsa_key.pub profile.json ssv2_demo.py streamlit_app.py ssv2_demo_sql.log
+deactivate 2>/dev/null; rm -rf streaming_venv; rm -f rsa_key.p8 rsa_key.pub profile.json streaming_demo.py streamlit_app.py streaming_demo_sql.log
 ```
 
 **After cleanup**, summarize what was removed.
@@ -762,14 +762,14 @@ deactivate 2>/dev/null; rm -rf ssv2_venv; rm -f rsa_key.p8 rsa_key.pub profile.j
 
 ## Examples
 
-**User**: "ssv2 ai webinar"
+**User**: "snowpipe streaming ai webinar"
 -> Run full flow Steps 0-9. Set up streaming, dashboard, semantic view, agent, and run showcase queries.
 
 **User**: "clean up" (after demo)
 -> Run Step 10 cleanup.
 
 **User**: "I just want the quickstart without the AI stuff"
--> Redirect to the `ssv2-quickstart` skill instead.
+-> Redirect to the `snowpipe-streaming-quickstart` skill instead.
 
 ## Templates
 

@@ -1,6 +1,6 @@
 ---
-name: ssv2-quickstart
-description: "Automated quick-start for Snowpipe Streaming V2 (high-performance architecture). Detects your OS (macOS/Linux/Windows), verifies Python, sets up a virtual environment, creates a landing table, configures RSA key-pair auth, streams fake user data via the default auto-created pipe, and deploys a real-time Streamlit in Snowflake dashboard so you can watch rows arrive live. Triggers: ssv2 quickstart, snowpipe streaming quickstart, snowpipe streaming demo, demo snowpipe streaming, try snowpipe streaming."
+name: snowpipe-streaming-quickstart
+description: "Automated quick-start for Snowpipe Streaming high-performance architecture (HPA). Detects your OS (macOS/Linux/Windows), verifies Python, sets up a virtual environment, creates a landing table, configures RSA key-pair auth, streams fake user data via the default auto-created pipe, and deploys a real-time Streamlit in Snowflake dashboard so you can watch rows arrive live. Triggers: snowpipe streaming quickstart, snowpipe streaming demo, demo snowpipe streaming, try snowpipe streaming, snowpipe streaming hpa quickstart."
 ---
 
 <!-- Copyright (c) 2026 Snowflake Inc. Licensed under Apache 2.0. See LICENSE. -->
@@ -9,10 +9,10 @@ description: "Automated quick-start for Snowpipe Streaming V2 (high-performance 
 
 Use this skill when the user wants to:
 
-- Try out or demo Snowpipe Streaming V2 (high-performance architecture) with minimal setup
+- Try out or demo Snowpipe Streaming high-performance architecture (HPA) with minimal setup
 - Set up an end-to-end streaming ingestion pipeline quickly
 - Generate fake/sample data and stream it into a Snowflake table
-- Learn how Snowpipe Streaming V2 works with the Python SDK
+- Learn how Snowpipe Streaming HPA works with the Python SDK
 
 ## What this skill provides
 
@@ -21,7 +21,7 @@ A fully automated, zero-to-streaming pipeline:
 1. **Platform detection & context** — detects macOS / Linux / Windows, verifies Python 3.9+, gathers Snowflake context (all in parallel); asks user for preferences
 2. **RSA key-pair generation** — generates a fresh 2048-bit RSA key-pair (`rsa_key.p8` / `rsa_key.pub`) and extracts the public key body (single Bash call)
 3. **Snowflake object setup + demo user** — creates database, schema, landing table, a dedicated demo user with RSA key, and grants (single SQL call)
-4. **Config files, demo script, and Python venv** — writes `profile.json` and `ssv2_demo.py` in parallel, then creates an isolated venv with `snowpipe-streaming` and `faker`
+4. **Config files, demo script, and Python venv** — writes `profile.json` and `streaming_demo.py` in parallel, then creates an isolated venv with `snowpipe-streaming` and `faker`
 5. **Real-time Streamlit dashboard** — deploys a Streamlit in Snowflake app with stage creation, file upload, and app creation (minimal SQL calls)
 6. **Streaming demo execution** — runs the Python demo script that generates fake data via the **default auto-created pipe** (no explicit `CREATE PIPE` needed)
 7. **Results summary** — queries the landing table to confirm rows arrived and presents metrics
@@ -40,7 +40,7 @@ The Python SDK references the default pipe using this naming convention:
 ```
 
 **Important:** Use a **hyphen** (`-`), not an underscore (`_`). Examples:
-- Table `SSV2_QUICKSTART_USERS` → Pipe name: `SSV2_QUICKSTART_USERS-streaming`
+- Table `STREAMING_QUICKSTART_USERS` → Pipe name: `STREAMING_QUICKSTART_USERS-streaming`
 - Table `MY_EVENTS` → Pipe name: `MY_EVENTS-streaming`
 
 ### High-performance vs Classic architecture
@@ -67,7 +67,7 @@ The Python SDK uses **key-pair (JWT) authentication**. The `profile.json` file r
    - **Step 1:** Run platform checks (Bash) and Snowflake context query (SQL) as **two parallel tool calls** — one Bash, one SQL
    - **Step 2:** Run both `openssl genrsa...` and the pubkey extraction in **one single Bash call**
    - **Step 3:** Run CREATE DATABASE, CREATE SCHEMA, CREATE TABLE, CREATE USER, ALTER USER SET RSA_PUBLIC_KEY, GRANTs, DESC USER in **one single SQL call**
-   - **Steps 4a:** Write `profile.json` and `ssv2_demo.py` as **two parallel FileWrite calls**
+   - **Steps 4a:** Write `profile.json` and `streaming_demo.py` as **two parallel FileWrite calls**
    - **Step 5 Streamlit deployment:** Run CREATE STAGE in SQL. Then write `streamlit_app.py` locally and upload it to the stage in **one Bash call**. Then run CREATE STREAMLIT + SHOW STREAMLITS in **one SQL call**.
    - **Step 8 cleanup:** Run all DROP statements in **one single SQL call**. Local files are preserved by default.
 
@@ -75,7 +75,7 @@ The Python SDK uses **key-pair (JWT) authentication**. The `profile.json` file r
 
 4. **Use parallel tool calls** — When operations are independent (e.g., writing local files while running SQL), execute them in parallel.
 
-5. **Log all SQL to `ssv2_demo_sql.log`** — Every time you execute SQL via `SnowflakeSqlExecute`, **immediately append** the SQL to a local file called `ssv2_demo_sql.log` using a Bash call (can run in parallel with the next step). Format each entry with a step header and timestamp:
+5. **Log all SQL to `streaming_demo_sql.log`** — Every time you execute SQL via `SnowflakeSqlExecute`, **immediately append** the SQL to a local file called `streaming_demo_sql.log` using a Bash call (can run in parallel with the next step). Format each entry with a step header and timestamp:
    ```
    -- ============================================================
    -- Step N — <Step Title>
@@ -94,7 +94,7 @@ Follow each step in order. Use `SnowflakeSqlExecute` for all SQL operations and 
 
 **Before doing anything**, confirm the user wants to run the full quickstart:
 
-> "This will run the **SSv2 Quickstart** — a fully automated demo that:
+> "This will run the **Snowpipe Streaming HPA Quickstart** — a fully automated demo that:
 > - Creates a demo database, schema, table, user, and role in Snowflake
 > - Generates RSA keys and a Python virtual environment locally
 > - Streams fake user data into Snowflake via the Snowpipe Streaming SDK
@@ -103,7 +103,7 @@ Follow each step in order. Use `SnowflakeSqlExecute` for all SQL operations and 
 >
 > The whole demo takes ~5 minutes. Want to proceed?"
 
-If the user says no, or if they were just asking a question about SSv2 (e.g., "what is ssv2?", "how does snowpipe streaming work?"), answer their question directly without running the quickstart.
+If the user says no, or if they were just asking a question about Snowpipe Streaming HPA (e.g., "what is snowpipe streaming HPA?", "how does snowpipe streaming work?"), answer their question directly without running the quickstart.
 
 ---
 
@@ -115,7 +115,7 @@ If the user says no, or if they were just asking a question about SSv2 (e.g., "w
 
 **Tool call 1 — Bash** (platform checks + initialize SQL log):
 ```bash
-echo "=== OS ==="; uname -s 2>/dev/null || echo "WINDOWS"; echo "=== Python ==="; python3 --version 2>/dev/null || python --version 2>/dev/null || echo "NOT FOUND"; echo "=== Working Directory ==="; pwd; echo "=== Home Directory ==="; echo $HOME; echo "-- SSV2 Quickstart SQL Log" > ssv2_demo_sql.log; echo "-- Generated by Cortex Code SSV2 Quickstart Skill" >> ssv2_demo_sql.log; echo "" >> ssv2_demo_sql.log
+echo "=== OS ==="; uname -s 2>/dev/null || echo "WINDOWS"; echo "=== Python ==="; python3 --version 2>/dev/null || python --version 2>/dev/null || echo "NOT FOUND"; echo "=== Working Directory ==="; pwd; echo "=== Home Directory ==="; echo $HOME; echo "-- Snowpipe Streaming HPA Quickstart SQL Log" > streaming_demo_sql.log; echo "-- Generated by Cortex Code Snowpipe Streaming HPA Quickstart Skill" >> streaming_demo_sql.log; echo "" >> streaming_demo_sql.log
 ```
 
 **Tool call 2 — SQL** (Snowflake context):
@@ -137,7 +137,7 @@ Interpret the OS result:
 **Error handling — stop if:**
 - Python not found or below 3.9 → tell user to install Python 3.9+
 - Linux glibc below 2.26 → tell user to upgrade
-- Working directory is `$HOME`, `/`, or drive root → tell user to `mkdir -p ~/ssv2-quickstart && cd ~/ssv2-quickstart`
+- Working directory is `$HOME`, `/`, or drive root → tell user to `mkdir -p ~/snowpipe-streaming-quickstart && cd ~/snowpipe-streaming-quickstart`
 - `CURRENT_WAREHOUSE()` is NULL → tell user to `USE WAREHOUSE <name>;`
 - **Windows detected** → warn the user:
   > "Windows support for this skill is **experimental**. The shell commands are written for macOS/Linux. You can continue if you're running under **WSL2** or **Git Bash**, but native CMD/PowerShell may hit issues. Would you like to proceed?"
@@ -148,11 +148,11 @@ Store the working Python command (`python3` or `python`) and all Snowflake conte
 #### 1b. Ask the user for preferences
 
 Ask the user:
-- Which **database** and **schema** to use (default: `SSV2_QUICKSTART_DB.SSV2_SCHEMA`, or use existing)
-- A **table name** for the landing table (default: `SSV2_QUICKSTART_USERS`)
+- Which **database** and **schema** to use (default: `STREAMING_QUICKSTART_DB.STREAMING_SCHEMA`, or use existing)
+- A **table name** for the landing table (default: `STREAMING_QUICKSTART_USERS`)
 - How many **minutes** to run the streaming demo (default: `3`, minimum: `1`, maximum: `10`)
 
-**Note on demo user:** This skill creates a dedicated demo user (`SSV2_DEMO_USER`) for streaming authentication. This avoids overwriting any existing RSA key-pair on the current user. The demo user is always cleaned up at the end.
+**Note on demo user:** This skill creates a dedicated demo user (`STREAMING_DEMO_USER`) for streaming authentication. This avoids overwriting any existing RSA key-pair on the current user. The demo user is always cleaned up at the end.
 
 ---
 
@@ -185,7 +185,7 @@ Capture the public key body output (the base64 string after `=== PUBLIC KEY BODY
 
 **Purpose:** Create the database, schema, landing table, a dedicated demo user with the RSA public key, and the necessary grants — all in one SQL call to minimize prompts.
 
-**Why a demo user?** The Snowpipe Streaming SDK requires RSA key-pair auth. Rather than overwriting any existing RSA key on the current user (which could break their existing workflows), we create a short-lived demo user `SSV2_DEMO_USER` with a dedicated role. This user is always cleaned up at the end.
+**Why a demo user?** The Snowpipe Streaming SDK requires RSA key-pair auth. Rather than overwriting any existing RSA key on the current user (which could break their existing workflows), we create a short-lived demo user `STREAMING_DEMO_USER` with a dedicated role. This user is always cleaned up at the end.
 
 Run **all of these in one single SQL call** (multi-statement):
 
@@ -208,16 +208,16 @@ CREATE OR REPLACE TABLE <DATABASE>.<SCHEMA>.<TABLE_NAME> (
     country              VARCHAR(100),
     order_amount         NUMBER(10,2)
 );
-CREATE ROLE IF NOT EXISTS SSV2_DEMO_ROLE;
-CREATE USER IF NOT EXISTS SSV2_DEMO_USER DEFAULT_ROLE = SSV2_DEMO_ROLE;
-GRANT ROLE SSV2_DEMO_ROLE TO USER SSV2_DEMO_USER;
-ALTER USER SSV2_DEMO_USER SET RSA_PUBLIC_KEY = '<PUBK_VALUE>';
-GRANT USAGE ON DATABASE <DATABASE> TO ROLE SSV2_DEMO_ROLE;
-GRANT USAGE ON SCHEMA <DATABASE>.<SCHEMA> TO ROLE SSV2_DEMO_ROLE;
-GRANT USAGE ON WAREHOUSE <WAREHOUSE> TO ROLE SSV2_DEMO_ROLE;
-GRANT OWNERSHIP ON TABLE <DATABASE>.<SCHEMA>.<TABLE_NAME> TO ROLE SSV2_DEMO_ROLE COPY CURRENT GRANTS;
+CREATE ROLE IF NOT EXISTS STREAMING_DEMO_ROLE;
+CREATE USER IF NOT EXISTS STREAMING_DEMO_USER DEFAULT_ROLE = STREAMING_DEMO_ROLE;
+GRANT ROLE STREAMING_DEMO_ROLE TO USER STREAMING_DEMO_USER;
+ALTER USER STREAMING_DEMO_USER SET RSA_PUBLIC_KEY = '<PUBK_VALUE>';
+GRANT USAGE ON DATABASE <DATABASE> TO ROLE STREAMING_DEMO_ROLE;
+GRANT USAGE ON SCHEMA <DATABASE>.<SCHEMA> TO ROLE STREAMING_DEMO_ROLE;
+GRANT USAGE ON WAREHOUSE <WAREHOUSE> TO ROLE STREAMING_DEMO_ROLE;
+GRANT OWNERSHIP ON TABLE <DATABASE>.<SCHEMA>.<TABLE_NAME> TO ROLE STREAMING_DEMO_ROLE COPY CURRENT GRANTS;
 GRANT SELECT ON TABLE <DATABASE>.<SCHEMA>.<TABLE_NAME> TO ROLE <CURRENT_ROLE>;
-DESC USER SSV2_DEMO_USER;
+DESC USER STREAMING_DEMO_USER;
 ```
 
 **Why GRANT OWNERSHIP on the table?** The default auto-created pipe is Snowflake-managed and tied to the table. The role that streams data must own the table to ensure full access to the default pipe (which is auto-created on first ingest). The DB and schema remain owned by the primary role so the user can still see and query the table under their own role. After transferring ownership, we grant SELECT back to the primary role so the Streamlit dashboard (which runs under the primary role) can read the table.
@@ -237,7 +237,7 @@ Look for `RSA_PUBLIC_KEY` in the DESC USER output to confirm it was set.
 
 **Purpose:** Write the SDK configuration file and demo script, then set up the Python environment. These are independent operations that should be parallelized.
 
-#### 4a. Write profile.json and ssv2_demo.py in parallel
+#### 4a. Write profile.json and streaming_demo.py in parallel
 
 **Execute these two FileWrite calls in parallel:**
 
@@ -245,18 +245,18 @@ Look for `RSA_PUBLIC_KEY` in the DESC USER output to confirm it was set.
 
 ```json
 {
-    "user": "SSV2_DEMO_USER",
+    "user": "STREAMING_DEMO_USER",
     "account": "<ACCOUNT_IDENTIFIER>",
     "url": "https://<ACCOUNT_IDENTIFIER>.snowflakecomputing.com:443",
     "private_key_file": "rsa_key.p8",
-    "role": "SSV2_DEMO_ROLE"
+    "role": "STREAMING_DEMO_ROLE"
 }
 ```
 
 Where:
-- `user` — always `SSV2_DEMO_USER` (the dedicated demo user created in Step 3)
+- `user` — always `STREAMING_DEMO_USER` (the dedicated demo user created in Step 3)
 - `<ACCOUNT_IDENTIFIER>` — derived from `CURRENT_ACCOUNT()` (e.g., `xy12345` or `org-account`)
-- `role` — always `SSV2_DEMO_ROLE` (the dedicated demo role created in Step 3)
+- `role` — always `STREAMING_DEMO_ROLE` (the dedicated demo role created in Step 3)
 
 **Error handling — account URL format:**
 
@@ -267,13 +267,13 @@ If the account uses PrivateLink or org-based URLs, the URL format may differ:
 
 Ask the user if they're using a non-standard URL format.
 
-**FileWrite 2 — ssv2_demo.py:** (see Step 4b below for full content)
+**FileWrite 2 — streaming_demo.py:** (see Step 4b below for full content)
 
-#### 4b. Demo script content (ssv2_demo.py)
+#### 4b. Demo script content (streaming_demo.py)
 
-Write `ssv2_demo.py` with the following content (interpolate user's chosen values):
+Write `streaming_demo.py` with the following content (interpolate user's chosen values):
 
-Write `ssv2_demo.py` using the template in the **"Demo script reference"** section below (between Steps 4 and 5). Interpolate the user's chosen DATABASE, SCHEMA, TABLE_NAME, and DEMO_MINUTES values into the placeholders.
+Write `streaming_demo.py` using the template in the **"Demo script reference"** section below (between Steps 4 and 5). Interpolate the user's chosen DATABASE, SCHEMA, TABLE_NAME, and DEMO_MINUTES values into the placeholders.
 
 #### 4c. Create Python virtual environment and install dependencies
 
@@ -284,7 +284,7 @@ Write `ssv2_demo.py` using the template in the **"Demo script reference"** secti
 Run the full setup in one command:
 
 ```bash
-<PYTHON_CMD> -m venv ssv2_venv && source ssv2_venv/bin/activate && pip install --upgrade pip && pip install snowpipe-streaming faker && python -c "from snowflake.ingest.streaming import StreamingIngestClient; print('SDK OK')" && python -c "from faker import Faker; print('Faker OK')"
+<PYTHON_CMD> -m venv streaming_venv && source streaming_venv/bin/activate && pip install --upgrade pip && pip install snowpipe-streaming faker && python -c "from snowflake.ingest.streaming import StreamingIngestClient; print('SDK OK')" && python -c "from faker import Faker; print('Faker OK')"
 ```
 
 #### Windows (experimental — WSL2 / Git Bash recommended)
@@ -292,7 +292,7 @@ Run the full setup in one command:
 If the user is on Windows and chose to proceed, use the macOS/Linux command above inside WSL2 or Git Bash. For native CMD as a fallback:
 
 ```cmd
-<PYTHON_CMD> -m venv ssv2_venv && ssv2_venv\Scripts\activate.bat && pip install --upgrade pip && pip install snowpipe-streaming faker && python -c "from snowflake.ingest.streaming import StreamingIngestClient; print('SDK OK')" && python -c "from faker import Faker; print('Faker OK')"
+<PYTHON_CMD> -m venv streaming_venv && streaming_venv\Scripts\activate.bat && pip install --upgrade pip && pip install snowpipe-streaming faker && python -c "from snowflake.ingest.streaming import StreamingIngestClient; print('SDK OK')" && python -c "from faker import Faker; print('Faker OK')"
 ```
 
 **Error handling — import fails:**
@@ -300,14 +300,14 @@ If the user is on Windows and chose to proceed, use the macOS/Linux command abov
 If either import fails:
 
 > "Package installation failed. Common fixes:
-> 1. Ensure the virtual environment is activated: `source ssv2_venv/bin/activate`
+> 1. Ensure the virtual environment is activated: `source streaming_venv/bin/activate`
 > 2. Retry installation: `pip install --force-reinstall snowpipe-streaming faker`
 > 3. Check Python version: `python --version` (must be 3.9+)
 > 4. On Linux, verify glibc >= 2.26: `ldd --version`"
 
 ---
 
-### Demo script reference (ssv2_demo.py)
+### Demo script reference (streaming_demo.py)
 
 **Note:** This script is written to disk in Step 4a (parallel with profile.json). The content below is the full template — interpolate `<DATABASE>`, `<SCHEMA>`, `<TABLE_NAME>`, and `<DEMO_MINUTES>` with the user's chosen values.
 
@@ -348,7 +348,7 @@ print(f"  Pipe:     {PIPE} (default auto-created pipe)")
 
 try:
     client = StreamingIngestClient(
-        "SSV2_QUICKSTART_CLIENT",
+        "STREAMING_QUICKSTART_CLIENT",
         DATABASE,
         SCHEMA,
         PIPE,
@@ -368,7 +368,7 @@ except Exception as e:
 # --- Open channel ---
 print(f"\nOpening channel...")
 try:
-    channel, status = client.open_channel("SSV2_QUICKSTART_CHANNEL")
+    channel, status = client.open_channel("STREAMING_QUICKSTART_CHANNEL")
     print(f"  Channel: {status.channel_name}")
     print(f"  Status:  {status.status_code}")
     print(f"  Latest committed offset: {status.latest_committed_offset_token}")
@@ -468,7 +468,7 @@ print("\nDemo complete!")
 
 **Tool call 1 — SQL** (create stage):
 ```sql
-CREATE STAGE IF NOT EXISTS <DATABASE>.<SCHEMA>.SSV2_STREAMLIT_STAGE
+CREATE STAGE IF NOT EXISTS <DATABASE>.<SCHEMA>.STREAMING_STREAMLIT_STAGE
     DIRECTORY = (ENABLE = TRUE);
 ```
 
@@ -478,7 +478,7 @@ CREATE STAGE IF NOT EXISTS <DATABASE>.<SCHEMA>.SSV2_STREAMLIT_STAGE
 import streamlit as st
 import time
 
-st.set_page_config(page_title="SSV2 Streaming Monitor", layout="wide")
+st.set_page_config(page_title="Snowpipe Streaming Monitor", layout="wide")
 
 conn = st.connection("snowflake")
 
@@ -487,7 +487,7 @@ SCHEMA   = "<SCHEMA>"
 TABLE    = "<TABLE_NAME>"
 REFRESH_INTERVAL = 2
 
-st.title("Snowpipe Streaming V2 — Live Monitor")
+st.title("Snowpipe Streaming HPA — Live Monitor")
 st.caption(f"Reading from `{DATABASE}.{SCHEMA}.{TABLE}` · refreshes every {REFRESH_INTERVAL}s")
 
 try:
@@ -570,7 +570,7 @@ st.rerun()
 After both 5a calls complete, upload the file:
 
 ```bash
-snow stage copy <LOCAL_PATH>/streamlit_app.py @<DATABASE>.<SCHEMA>.SSV2_STREAMLIT_STAGE --overwrite
+snow stage copy <LOCAL_PATH>/streamlit_app.py @<DATABASE>.<SCHEMA>.STREAMING_STREAMLIT_STAGE --overwrite
 ```
 
 **Error handling — upload fails:**
@@ -586,8 +586,8 @@ If the upload fails:
 Run **one single SQL call** with both CREATE STREAMLIT and SHOW STREAMLITS:
 
 ```sql
-CREATE OR REPLACE STREAMLIT <DATABASE>.<SCHEMA>.SSV2_STREAMING_MONITOR
-    ROOT_LOCATION = '@<DATABASE>.<SCHEMA>.SSV2_STREAMLIT_STAGE'
+CREATE OR REPLACE STREAMLIT <DATABASE>.<SCHEMA>.STREAMING_MONITOR
+    ROOT_LOCATION = '@<DATABASE>.<SCHEMA>.STREAMING_STREAMLIT_STAGE'
     MAIN_FILE = 'streamlit_app.py'
     QUERY_WAREHOUSE = '<WAREHOUSE>';
 SHOW STREAMLITS IN SCHEMA <DATABASE>.<SCHEMA>;
@@ -608,7 +608,7 @@ If CREATE STREAMLIT fails:
 If other users need to view the dashboard:
 
 ```sql
-GRANT USAGE ON STREAMLIT <DATABASE>.<SCHEMA>.SSV2_STREAMING_MONITOR TO ROLE <ROLE>;
+GRANT USAGE ON STREAMLIT <DATABASE>.<SCHEMA>.STREAMING_MONITOR TO ROLE <ROLE>;
 ```
 
 #### 5e. Present dashboard to user
@@ -620,7 +620,7 @@ GRANT USAGE ON STREAMLIT <DATABASE>.<SCHEMA>.SSV2_STREAMING_MONITOR TO ROLE <ROL
 > **To access the dashboard:**
 > 1. Open Snowsight in your browser
 > 2. Navigate to **Projects > Streamlit** in the left sidebar
-> 3. Find and click **SSV2_STREAMING_MONITOR** in the list
+> 3. Find and click **STREAMING_MONITOR** in the list
 >
 > *(Note: Direct URL links may not work — use the Projects > Streamlit navigation instead.)*
 >
@@ -646,7 +646,7 @@ Data typically takes 5-10 seconds to start appearing in the dashboard after the 
 Run the demo:
 
 ```bash
-source ssv2_venv/bin/activate && python ssv2_demo.py
+source streaming_venv/bin/activate && python streaming_demo.py
 ```
 
 **Note:** Data typically takes 5-10 seconds to start appearing in the dashboard after the script begins streaming.
@@ -660,7 +660,7 @@ The user should have the Streamlit dashboard open (from Step 5e) to watch data a
 | `Connection refused` | Account URL incorrect | Verify `url` in profile.json matches your Snowflake account |
 | `Authentication failed` | Public key not registered | Run `DESC USER <USER>;` and check RSA_PUBLIC_KEY is set |
 | `Table not found` | Wrong database/schema/table | Verify objects exist and role has access |
-| `ModuleNotFoundError` | Venv not activated | Run `source ssv2_venv/bin/activate` |
+| `ModuleNotFoundError` | Venv not activated | Run `source streaming_venv/bin/activate` |
 | `Permission denied` | Role lacks INSERT | Grant INSERT on table to role |
 
 ---
@@ -738,13 +738,13 @@ If yes, terminate the background process or ask the user to press `Ctrl+C` in th
 
 ```sql
 -- Streamlit app and stage first (they live in the schema)
-DROP STREAMLIT IF EXISTS <DATABASE>.<SCHEMA>.SSV2_STREAMING_MONITOR;
-DROP STAGE IF EXISTS <DATABASE>.<SCHEMA>.SSV2_STREAMLIT_STAGE;
+DROP STREAMLIT IF EXISTS <DATABASE>.<SCHEMA>.STREAMING_MONITOR;
+DROP STAGE IF EXISTS <DATABASE>.<SCHEMA>.STREAMING_STREAMLIT_STAGE;
 -- Drop schema with CASCADE — this drops the table (owned by demo role) and its auto-created pipe
 DROP SCHEMA IF EXISTS <DATABASE>.<SCHEMA>;
 -- Demo user and role
-DROP USER IF EXISTS SSV2_DEMO_USER;
-DROP ROLE IF EXISTS SSV2_DEMO_ROLE;
+DROP USER IF EXISTS STREAMING_DEMO_USER;
+DROP ROLE IF EXISTS STREAMING_DEMO_ROLE;
 -- Database (only if created for this demo)
 DROP DATABASE IF EXISTS <DATABASE>;
 ```
@@ -752,14 +752,14 @@ DROP DATABASE IF EXISTS <DATABASE>;
 **If option 2**, also run local cleanup in parallel:
 
 ```bash
-deactivate 2>/dev/null; rm -rf ssv2_venv; rm -f rsa_key.p8 rsa_key.pub profile.json ssv2_demo.py streamlit_app.py ssv2_demo_sql.log
+deactivate 2>/dev/null; rm -rf streaming_venv; rm -f rsa_key.p8 rsa_key.pub profile.json streaming_demo.py streamlit_app.py streaming_demo_sql.log
 ```
 
 **After cleanup**, remind the user what was done:
 
-- **Option 1:** "Snowflake objects cleaned up. Local files preserved in your working directory: `ssv2_demo_sql.log`, `ssv2_demo.py`, `streamlit_app.py`, `profile.json`, `rsa_key.p8`, `rsa_key.pub`, `ssv2_venv/`. To delete locally: `rm -rf ssv2_venv rsa_key.p8 rsa_key.pub profile.json ssv2_demo.py streamlit_app.py ssv2_demo_sql.log`"
+- **Option 1:** "Snowflake objects cleaned up. Local files preserved in your working directory: `streaming_demo_sql.log`, `streaming_demo.py`, `streamlit_app.py`, `profile.json`, `rsa_key.p8`, `rsa_key.pub`, `streaming_venv/`. To delete locally: `rm -rf streaming_venv rsa_key.p8 rsa_key.pub profile.json streaming_demo.py streamlit_app.py streaming_demo_sql.log`"
 - **Option 2:** "All Snowflake objects and local files cleaned up."
-- **Option 3:** "Everything left in place. Snowflake objects: `<DATABASE>.<SCHEMA>.<TABLE_NAME>`, demo user `SSV2_DEMO_USER`, Streamlit app `SSV2_STREAMING_MONITOR`. Local files in your working directory."
+- **Option 3:** "Everything left in place. Snowflake objects: `<DATABASE>.<SCHEMA>.<TABLE_NAME>`, demo user `STREAMING_DEMO_USER`, Streamlit app `STREAMING_MONITOR`. Local files in your working directory."
 
 ---
 
@@ -778,7 +778,7 @@ deactivate 2>/dev/null; rm -rf ssv2_venv; rm -f rsa_key.p8 rsa_key.pub profile.j
 
 ## Examples
 
-**User**: "I want to try Snowpipe Streaming V2"
+**User**: "I want to try Snowpipe Streaming HPA"
 → Run full flow Steps 1-8. Deploy Streamlit dashboard before streaming demo.
 
 **User**: "Set up streaming into my existing table EVENTS"
@@ -798,11 +798,11 @@ deactivate 2>/dev/null; rm -rf ssv2_venv; rm -f rsa_key.p8 rsa_key.pub profile.j
 
 ```json
 {
-    "user": "SSV2_DEMO_USER",
+    "user": "STREAMING_DEMO_USER",
     "account": "{{ACCOUNT_IDENTIFIER}}",
     "url": "https://{{ACCOUNT_IDENTIFIER}}.snowflakecomputing.com:443",
     "private_key_file": "rsa_key.p8",
-    "role": "SSV2_DEMO_ROLE"
+    "role": "STREAMING_DEMO_ROLE"
 }
 ```
 
@@ -835,12 +835,12 @@ No `CREATE PIPE` needed. The SDK references:
 ### Streamlit deployment
 
 ```sql
-CREATE STAGE IF NOT EXISTS {{DATABASE}}.{{SCHEMA}}.SSV2_STREAMLIT_STAGE
+CREATE STAGE IF NOT EXISTS {{DATABASE}}.{{SCHEMA}}.STREAMING_STREAMLIT_STAGE
     DIRECTORY = (ENABLE = TRUE);
 
 -- After uploading streamlit_app.py:
-CREATE OR REPLACE STREAMLIT {{DATABASE}}.{{SCHEMA}}.SSV2_STREAMING_MONITOR
-    ROOT_LOCATION = '@{{DATABASE}}.{{SCHEMA}}.SSV2_STREAMLIT_STAGE'
+CREATE OR REPLACE STREAMLIT {{DATABASE}}.{{SCHEMA}}.STREAMING_MONITOR
+    ROOT_LOCATION = '@{{DATABASE}}.{{SCHEMA}}.STREAMING_STREAMLIT_STAGE'
     MAIN_FILE = 'streamlit_app.py'
     QUERY_WAREHOUSE = '{{WAREHOUSE}}';
 ```
