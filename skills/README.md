@@ -6,16 +6,17 @@ Cortex Code skills for automating Snowpipe Streaming SDK demos, setup, and opera
 
 | Skill | Triggers | Description | Time |
 |-------|----------|-------------|------|
-| [SSv2 Quickstart](./ssv2-quickstart/) | `ssv2 quickstart`, `try snowpipe streaming` | Zero-to-streaming pipeline: OS detection, RSA keys, Python venv, fake data streaming via default pipe, live Streamlit dashboard | ~5 min |
-| [SSv2 AI Webinar](./ssv2-ai-webinar/) | `ssv2 ai webinar`, `ssv2 webinar demo` | Everything in Quickstart plus 30-min background streaming, Semantic View, Cortex Agent for natural-language queries, presenter handoff | ~5 min setup |
+| [Snowpipe Streaming Quickstart](./snowpipe-streaming-quickstart/) | `snowpipe streaming quickstart`, `try snowpipe streaming` | Zero-to-streaming pipeline: OS detection, RSA keys, Python venv, fake data streaming via default pipe, live Streamlit dashboard | ~5 min |
+| [Snowpipe Streaming AI Webinar](./snowpipe-streaming-ai-webinar/) | `snowpipe streaming ai webinar`, `snowpipe streaming webinar demo` | Everything in Quickstart plus 30-min background streaming, Semantic View, Cortex Agent for natural-language queries, presenter handoff | ~5 min setup |
 | [Custom Kafka Consumer](./custom-kafka-consumer/) | `kafka consumer`, `kafka to snowflake` | Set up, run, and debug a Kafka-to-Snowflake streaming pipeline using the SDK with 1:1 partition-to-channel mapping | ~15 min |
+| [Kafka Connector V4](./kafka-connector-v4/) | `kafka connector v4`, `kafka connector setup` | Set up, configure, and troubleshoot the Snowflake Kafka Connector V4 with default/user-defined pipe modes, validation, monitoring, V3 migration, and error diagnosis | ~10-20 min |
 
 ## How to Use
 
 These skills are designed for [Claude Code](https://claude.ai/code) (Cortex Code). To use a skill:
 
 1. Open Claude Code in a project that includes this repository
-2. Type a trigger phrase (e.g., `ssv2 quickstart`)
+2. Type a trigger phrase (e.g., `snowpipe streaming quickstart`)
 3. Follow the interactive prompts
 
 ## Adding a New Skill
