@@ -96,7 +96,7 @@ public class StreamingIngestExample {
                     System.out.println("  Committed offset:   " + status.getLatestOffsetToken());
                     System.out.println("  Rows inserted:      " + status.getRowsInsertedCount());
                     System.out.println("  Rows errored:       " + status.getRowsErrorCount());
-                    System.out.println("  Avg server latency: " + status.getServerAvgProcessingLatency());
+                    System.out.println("  Avg server latency: " + status.getServerAvgProcessingLatency().toMillis() + " ms");
                     if (status.getRowsErrorCount() > 0) {
                         System.out.println("  Last error:         " + status.getLastErrorMessage());
                     }

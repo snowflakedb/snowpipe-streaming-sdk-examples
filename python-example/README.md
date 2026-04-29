@@ -108,7 +108,7 @@ All data committed. Channel status:
   Committed offset:   100000
   Rows inserted:      100000
   Rows errored:       0
-  Avg server latency: 0:00:01.234000
+  Avg server latency: 1.234 s
 Data ingestion completed
 ```
 

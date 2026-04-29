@@ -79,7 +79,7 @@ def main():
             print(f"  Committed offset:   {status.latest_committed_offset_token}")
             print(f"  Rows inserted:      {status.rows_inserted_count}")
             print(f"  Rows errored:       {status.rows_error_count}")
-            print(f"  Avg server latency: {status.server_avg_processing_latency}")
+            print(f"  Avg server latency: {status.server_avg_processing_latency.total_seconds():.3f} s")
             if status.rows_error_count > 0:
                 print(f"  Last error:         {status.last_error_message}")
 
