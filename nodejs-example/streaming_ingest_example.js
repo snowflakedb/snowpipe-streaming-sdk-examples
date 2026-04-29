@@ -63,21 +63,26 @@ async function main() {
         }
       }
 
-      console.log("All rows submitted. Waiting for ingestion to complete...");
+      console.log("All rows submitted. Waiting for commit...");
 
-      // Wait for all rows to be committed
-      const expectedToken = String(MAX_ROWS);
+      // Wait for all rows to be committed using waitForCommit.
+      // The predicate receives the latest committed offset token
+      // (string or null) and should return true when satisfied.
       await channel.waitForCommit(
-        (token) => token !== null && token === expectedToken,
-        { timeoutMs: 60_000 },
+        (token) => token !== null && Number(token) >= MAX_ROWS,
+        { timeoutMs: 30_000 },
       );
 
-      // Verify channel status
+      // Now that data has landed, check the channel status
       const status = await channel.getChannelStatus();
-      console.log(
-        `Latest committed offset token: ${status.latestCommittedOffsetToken}`,
-      );
-      console.log("All data committed successfully");
+      console.log("All data committed. Channel status:");
+      console.log(`  Committed offset:   ${status.latestCommittedOffsetToken}`);
+      console.log(`  Rows inserted:      ${status.rowsInsertedCount}`);
+      console.log(`  Rows errored:       ${status.rowsErrorCount}`);
+      console.log(`  Avg server latency: ${status.serverAvgProcessingLatencyMs} ms`);
+      if (status.rowsErrorCount > 0) {
+        console.log(`  Last error:         ${status.lastErrorMessage}`);
+      }
     } finally {
       await channel.close();
     }

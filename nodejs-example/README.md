@@ -88,7 +88,7 @@ node streaming_ingest_example.js
    - `c1`: Integer counter
    - `c2`: String representation of the counter
    - `ts`: Current timestamp
-4. **Waits for Completion** - Uses `waitForCommit` to block until all data is committed, then prints the channel status
+4. **Waits for Completion** - Uses `waitForCommit()` to block until all rows are committed, then calls `getChannelStatus()` to display committed offset, rows inserted, error count, and server latency
 5. **Closes Resources** - Properly closes the channel and client via try/finally blocks
 
 ## Expected Output
@@ -100,9 +100,12 @@ Ingesting 100000 rows...
 Ingested 10000 rows...
 Ingested 20000 rows...
 ...
-All rows submitted. Waiting for ingestion to complete...
-Latest committed offset token: 100000
-All data committed successfully
+All rows submitted. Waiting for commit...
+All data committed. Channel status:
+  Committed offset:   100000
+  Rows inserted:      100000
+  Rows errored:       0
+  Avg server latency: 1234 ms
 Data ingestion completed
 ```
 
