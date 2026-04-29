@@ -26,9 +26,16 @@ A complete Python project demonstrating the Snowpipe Streaming SDK in Python. In
 - Sample configuration files
 - **[Monitoring & Abort](./python-example/monitoring)** — Monitor channel status, track offset lag, inject errors, abort on error increase, and optional live matplotlib plotting
 
+### [Node.js Example](./nodejs-example)
+A complete Node.js project demonstrating the Snowpipe Streaming SDK in Node.js. Includes:
+- npm package configuration with all required dependencies
+- Clean, well-documented example code
+- Setup instructions
+- Sample configuration files
+
 ## Getting Started
 
-1. Choose your preferred language (Java or Python)
+1. Choose your preferred language (Java, Python, or Node.js)
 2. Navigate to the respective example directory
 3. Follow the README instructions in that directory to:
    - Set up your Snowflake table and pipe
