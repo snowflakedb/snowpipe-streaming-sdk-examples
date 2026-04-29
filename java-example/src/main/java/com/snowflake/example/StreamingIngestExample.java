@@ -2,6 +2,7 @@ package com.snowflake.example;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.snowflake.ingest.streaming.ChannelStatus;
 import com.snowflake.ingest.streaming.SnowflakeStreamingIngestChannel;
 import com.snowflake.ingest.streaming.SnowflakeStreamingIngestClient;
 import com.snowflake.ingest.streaming.SnowflakeStreamingIngestClientFactory;
@@ -9,11 +10,12 @@ import com.snowflake.ingest.streaming.SnowflakeStreamingIngestClientFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Example demonstrating how to use the Snowflake Streaming Ingest SDK
@@ -27,8 +29,6 @@ public class StreamingIngestExample {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String PROFILE_PATH = "profile.json";
     private static final int MAX_ROWS = 100_000;
-    private static final int POLL_ATTEMPTS = 30;
-    private static final long POLL_INTERVAL_MS = TimeUnit.SECONDS.toMillis(1);
 
     // Replace these with your Snowflake object names
     private static final String DATABASE = "MY_DATABASE";
@@ -80,30 +80,32 @@ public class StreamingIngestExample {
                         }
                     }
 
-                    System.out.println("All rows submitted. Waiting for ingestion to complete...");
+                    System.out.println("All rows submitted. Waiting for commit...");
 
-                    // Wait for ingestion to complete
-                    for (int attempt = 1; attempt <= POLL_ATTEMPTS; attempt++) {
-                        String latestOffset = channel.getChannelStatus().getLatestOffsetToken();
-                        System.out.println("Latest offset token: " + latestOffset);
+                    // Wait for all rows to be committed using waitForCommit.
+                    // The predicate receives the latest committed offset token
+                    // (String) and should return true when satisfied.
+                    channel.waitForCommit(
+                        token -> token != null && Long.parseLong(token) >= MAX_ROWS,
+                        Duration.ofSeconds(30)
+                    ).get();
 
-                        if (latestOffset != null && Integer.parseInt(latestOffset) >= MAX_ROWS) {
-                            System.out.println("All data committed successfully");
-                            break;
-                        }
-
-                        if (attempt == POLL_ATTEMPTS) {
-                            throw new RuntimeException("Ingestion failed after all attempts");
-                        }
-
-                        Thread.sleep(POLL_INTERVAL_MS);
+                    // Now that data has landed, check the channel status
+                    ChannelStatus status = channel.getChannelStatus();
+                    System.out.println("All data committed. Channel status:");
+                    System.out.println("  Committed offset:   " + status.getLatestOffsetToken());
+                    System.out.println("  Rows inserted:      " + status.getRowsInsertedCount());
+                    System.out.println("  Rows errored:       " + status.getRowsErrorCount());
+                    System.out.println("  Avg server latency: " + status.getServerAvgProcessingLatency());
+                    if (status.getRowsErrorCount() > 0) {
+                        System.out.println("  Last error:         " + status.getLastErrorMessage());
                     }
                 } // Channel automatically closed here
 
                 System.out.println("Data ingestion completed");
             } // Client automatically closed here
 
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException | InterruptedException | ExecutionException e) {
             System.err.println("Error during data ingestion: " + e.getMessage());
             e.printStackTrace();
             System.exit(1);

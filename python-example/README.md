@@ -91,7 +91,7 @@ python streaming_ingest_example.py
    - `c1`: Integer counter
    - `c2`: String representation of the counter
    - `ts`: Current timestamp
-4. **Waits for Completion** - Polls the channel status until all data is committed
+4. **Waits for Completion** - Uses `wait_for_commit()` to block until all rows are committed, then calls `get_channel_status()` to display committed offset, rows inserted, error count, and server latency
 5. **Closes Resources** - Properly closes the channel and client via context managers
 
 ## Expected Output
@@ -103,9 +103,12 @@ Ingesting 100000 rows...
 Ingested 10000 rows...
 Ingested 20000 rows...
 ...
-All rows submitted. Waiting for ingestion to complete...
-Latest offset token: 99999
-All data committed successfully
+All rows submitted. Waiting for commit...
+All data committed. Channel status:
+  Committed offset:   100000
+  Rows inserted:      100000
+  Rows errored:       0
+  Avg server latency: 0:00:01.234000
 Data ingestion completed
 ```
 
