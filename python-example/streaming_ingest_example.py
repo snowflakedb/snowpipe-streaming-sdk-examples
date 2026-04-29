@@ -8,7 +8,6 @@ follows the convention: <TABLE_NAME>-STREAMING
 """
 
 from datetime import datetime
-import time
 import uuid
 import os
 
@@ -19,8 +18,6 @@ from snowflake.ingest.streaming import StreamingIngestClient
 
 
 MAX_ROWS = 100_000
-POLL_ATTEMPTS = 30
-POLL_INTERVAL_MS = 1000
 
 # Replace these with your Snowflake object names
 DATABASE = "MY_DATABASE"
@@ -52,7 +49,7 @@ def main():
             # Ingest rows — column names must match the target table schema.
             # The default pipe uses MATCH_BY_COLUMN_NAME to map fields.
             print(f"Ingesting {MAX_ROWS} rows...")
-            for i in range(MAX_ROWS):
+            for i in range(1, MAX_ROWS + 1):
                 row_id = str(i)
                 channel.append_row(
                     {
@@ -63,23 +60,28 @@ def main():
                     row_id
                 )
 
-                if (i + 1) % 10_000 == 0:
-                    print(f"Ingested {i + 1} rows...")
+                if i % 10_000 == 0:
+                    print(f"Ingested {i} rows...")
 
-            print("All rows submitted. Waiting for ingestion to complete...")
+            print("All rows submitted. Waiting for commit...")
 
-            # Wait for ingestion to complete
-            for attempt in range(POLL_ATTEMPTS):
-                latest_offset = channel.get_latest_committed_offset_token()
-                print(f"Latest offset token: {latest_offset}")
+            # Wait for all rows to be committed using wait_for_commit.
+            # The predicate receives the latest committed offset token
+            # (str or None) and should return True when satisfied.
+            def all_rows_committed(token):
+                return token is not None and int(token) >= MAX_ROWS
 
-                if latest_offset == str(MAX_ROWS - 1):
-                    print("All data committed successfully")
-                    break
+            channel.wait_for_commit(all_rows_committed, timeout_seconds=30)
 
-                time.sleep(POLL_INTERVAL_MS / 1000)
-            else:
-                raise Exception("Ingestion failed after all attempts")
+            # Now that data has landed, check the channel status
+            status = channel.get_channel_status()
+            print(f"All data committed. Channel status:")
+            print(f"  Committed offset:   {status.latest_committed_offset_token}")
+            print(f"  Rows inserted:      {status.rows_inserted_count}")
+            print(f"  Rows errored:       {status.rows_error_count}")
+            print(f"  Avg server latency: {status.server_avg_processing_latency.total_seconds():.3f} s")
+            if status.rows_error_count > 0:
+                print(f"  Last error:         {status.last_error_message}")
 
         # Channel automatically closed here
         print("Data ingestion completed")

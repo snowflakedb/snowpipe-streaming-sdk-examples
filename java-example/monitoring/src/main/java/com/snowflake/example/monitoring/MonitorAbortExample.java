@@ -20,7 +20,7 @@ import java.util.UUID;
  * and automatically halting production when server-side errors are detected.
  *
  * <p>This example mirrors the Python monitor_abort_example.py and uses the
- * SSv2 high-performance architecture API:
+ * Snowpipe Streaming high-performance architecture API:
  * <ul>
  *   <li>{@code appendRow()} - fire-and-forget row append (server-side validation)</li>
  *   <li>{@code getChannelStatus()} - rich status with error counts, latency, committed offset</li>
