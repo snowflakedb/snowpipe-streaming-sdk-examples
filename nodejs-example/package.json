@@ -11,6 +11,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "snowpipe-streaming": "^0.1.0"
+    "snowpipe-streaming": "^1.4.0"
   }
 }
