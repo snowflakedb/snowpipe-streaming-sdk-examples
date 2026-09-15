@@ -1,17 +1,48 @@
-# Node.js Snowpipe Streaming SDK Example
+# Node.js Snowpipe Streaming SDK Examples
 
-This example demonstrates how to use the Snowflake Streaming Ingest SDK in Node.js to ingest data into Snowflake in real-time using the [high-performance architecture](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-high-performance-overview) and default pipe.
+Examples for streaming data into Snowflake with the [Snowpipe Streaming SDK](https://www.npmjs.com/package/snowpipe-streaming) (Node.js).
+
+Requires **snowpipe-streaming >= 1.8.0** and Node.js >= 20.
+
+
+## Adapt This Example to Your Application
+
+1. **Run the sample unchanged first.** Set your target database/schema/table and authentication profile. The production examples generate synthetic rows with `EVENT_ID NUMBER`, `C1 NUMBER`, and `C2 VARCHAR`; they do not read a broker, file, or API. Set `SNOWFLAKE_TEST_ROWS=1005` to cross the progress-check cadence and exercise final drain. Successful output reports source checkpoint `1005`.
+2. **Start reading at `main`, then `run`.** The loop reads a retained event, submits it to the SDK, collects available delivery progress, and acknowledges only confirmed source events. Connection and recovery details appear below that flow in the same file.
+3. **Replace `SampleEventSource`.** Replace `read` with your source operation and change the sample row mapping to match your table. Reading must not delete or permanently acknowledge an event. End-of-input (`None`/`null`) stops the example; a temporarily idle live source must instead wait or poll with a bounded, interruptible read.
+4. **Implement durable source progress.** Replace `acknowledge` with your source commit/checkpoint operation. The sample stores progress only in memory. Elastic requires retained/replayable events and stable source-unique IDs for duplicate reconciliation. Named channels additionally require `seek` strictly after the server's committed offset and one exclusive owner per stable channel name.
+5. **Choose outage and shutdown behavior.** Pausing reads must propagate backpressure to the producer. A push source needs explicit flow control. If events cannot be replayed, persist them before accepting responsibility; the SDK memory buffer is not a disk spool. On shutdown, stop intake and confirm pending progress within your budget; retain anything unconfirmed for restart.
+6. **Verify delivery and table results separately.** Elastic acknowledgement confirms durability, not row validity or immediate query visibility. Monitor materialization/error logging separately. Named examples block source handoff on row errors. Do not simply retry schema or authorization failures indefinitely.
+
+### Before Production
+
+- Size the 100,000-pending-event application safety limit for your payloads: an event-count limit is not a byte-memory limit. Validate row sizes and account for the SDK buffer plus retained source data.
+- The periodic progress check runs between source reads, not on an independent timer. Integrate bounded reads and cancellation for live sources.
+- The 30-minute stalled-progress budget does not cancel SDK management calls or their independent transport retries.
+- Test restart, source checkpoint failure, invalidation, and sustained backpressure with your real source. Define storage capacity and overflow behavior before accepting unreplayable events.
+- Keep credentials in a secure credential manager and choose a role with only the required privileges. Kafka is not required solely to deliver events to Snowflake.
+
+
+## Channel modes
+
+| Mode | File | When to use |
+|------|------|-------------|
+| Elastic Channel (quickstart) | `elastic_quickstart.js` | New applications. Easiest to get started; Snowflake manages scaling and channel lifecycle. Delivery is at-least-once and unordered. |
+| Elastic Channel (production) | `elastic_production.js` | Production workloads. Adds bounded durability checkpoints, retry, client recreation, and graceful shutdown. |
+| Named channel (checkpoint) | `named_channel_checkpoint.js` | Strict exactly-once ingestion, ordered delivery within a channel, or explicit source-offset recovery after a restart. |
+
+The legacy `streaming_ingest_example.js` (named-channel pattern) is preserved for reference.
 
 ## Prerequisites
 
 - Node.js 20 or higher
-- npm (Node.js package manager)
+- npm
 - A Snowflake account with appropriate permissions
 - RSA key-pair authentication configured
 
 ## Setup
 
-### 1. Generate RSA Key Pair
+### 1. Generate an RSA key pair
 
 ```bash
 openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out rsa_key.p8 -nocrypt
@@ -24,29 +55,31 @@ Register the public key with your Snowflake user:
 ALTER USER MY_USER SET RSA_PUBLIC_KEY='<contents of rsa_key.pub, without header/footer>';
 ```
 
-### 2. Create a Snowflake Table
-
-Create a target table in your Snowflake account:
+### 2. Create a Snowflake table
 
 ```sql
 CREATE OR REPLACE TABLE MY_DATABASE.MY_SCHEMA.MY_TABLE (
-    c1 NUMBER,
-    c2 VARCHAR,
-    ts TIMESTAMP_NTZ
+    DATA   VARIANT,
+    C1     NUMBER,
+    C2     VARCHAR,
+    ID     NUMBER,
+    VALUE  VARCHAR,
+    EVENT_ID NUMBER,
+    ts     TIMESTAMP_NTZ
 );
 ```
 
-No `CREATE PIPE` is needed — the high-performance architecture automatically creates a **default pipe** named `MY_TABLE-STREAMING` when you first open a channel.
+No `CREATE PIPE` is needed. The SDK derives the pipe name automatically as `<TABLE>-STREAMING`.
 
-### 3. Install Dependencies
+### 3. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 4. Configure Authentication
+### 4. Configure authentication
 
-Create a `profile.json` file in the `nodejs-example` directory using `profile.json.example` as a template:
+Copy `profile.json.example` to `profile.json` and fill in your credentials:
 
 ```json
 {
@@ -58,67 +91,75 @@ Create a `profile.json` file in the `nodejs-example` directory using `profile.js
 }
 ```
 
-**Note:** Use `private_key_file` to reference the key file path. For production, consider using a secure credential manager.
+### 5. Update the table constants
 
-### 5. Update Configuration
-
-Edit `streaming_ingest_example.js` and update the constants at the top of the file:
-
-- `DATABASE` - Your database name
-- `SCHEMA` - Your schema name
-- `TABLE` - Your table name (the pipe name is derived automatically as `<TABLE>-STREAMING`)
+Edit the object-name defaults or set the matching `SNOWFLAKE_*` environment variables.
 
 ## Run
 
 ```bash
-npm start
+# Elastic quickstart (recommended starting point)
+node elastic_quickstart.js
+
+# Production Elastic example
+node elastic_production.js
+
+# Named-channel checkpoint example
+node named_channel_checkpoint.js
 ```
 
-Or directly:
+## Example details
+
+### `elastic_quickstart.js`
+
+Creates a table-mode client, gets the Elastic Channel, appends the same `DATA`/`C1`/`C2`
+row shown in the product documentation with `appendRowWithWait`, retrieves channel status,
+and closes the client.
+
+### `elastic_production.js`
+
+See the [shared retention contract](../README.md#production-retention-contract).
+Appends are issued as events are read. Rejections are observed immediately so a later checkpoint
+cannot cause an unhandled rejection. Progress collection retires confirmed prefixes without waiting for every original
+Promise. Event-loop yields allow native completions to run. SDK backpressure or the pending-event
+safety limit pauses intake; slow acknowledgements alone do not trigger resubmission. Only terminal retryable SDK failures are
+resubmitted; only SDK invalidation recreates the client. Old-generation failures reuse the new client.
+
+Both production programs are self-contained. The included `SampleEventSource` regenerates fixed
+events and does not persist checkpoints. Replace it with the producer's retained source API.
+PAT mode requires `SNOWFLAKE_PAT`, `SNOWFLAKE_ACCOUNT`, and `SNOWFLAKE_URL`; `SNOWFLAKE_ROLE` is optional.
+Otherwise `profile.json` or `SNOWFLAKE_PROFILE` is used. Account/role defaults are not hard-coded for tests.
+
+### `named_channel_checkpoint.js`
+
+Demonstrates the named-channel pattern for strict exactly-once ingestion:
+
+- Opens a stable, exclusively owned channel without replacing its server offset and seeks after committed progress.
+- Appends each event with `appendRow`; the SDK buffers and batches it internally.
+- Fetches channel status periodically and during backpressure/final drain; each fetch retains SDK request latency, but does not wait for all submitted offsets.
+- Checks row errors before source handoff. Invalidation reopens and seeks to the newly returned committed offset.
+- `SNOWFLAKE_CHANNEL` selects the stable channel. Running again resumes after committed events instead of starting from zero.
+
+## Tests
+
+Tests exercise the real loops with controlled failures: paused reads, late acknowledgements,
+out-of-order completion, invalidation generations, backpressure, and restart offsets.
 
 ```bash
-node streaming_ingest_example.js
-```
-
-## What the Example Does
-
-1. **Creates a Streaming Ingest Client** - Connects to Snowflake using credentials from `profile.json`
-2. **Opens a Channel** - Creates a channel on the default pipe (`MY_TABLE-STREAMING`)
-3. **Ingests Data** - Streams 100,000 rows with columns matched by name (MATCH_BY_COLUMN_NAME):
-   - `c1`: Integer counter
-   - `c2`: String representation of the counter
-   - `ts`: Current timestamp
-4. **Waits for Completion** - Uses `waitForCommit()` to block until all rows are committed, then calls `getChannelStatus()` to display committed offset, rows inserted, error count, and server latency
-5. **Closes Resources** - Properly closes the channel and client via try/finally blocks
-
-## Expected Output
-
-```
-Client created successfully
-Channel opened: MY_CHANNEL_<uuid>
-Ingesting 100000 rows...
-Ingested 10000 rows...
-Ingested 20000 rows...
-...
-All rows submitted. Waiting for commit...
-All data committed. Channel status:
-  Committed offset:   100000
-  Rows inserted:      100000
-  Rows errored:       0
-  Avg server latency: 1234 ms
-Data ingestion completed
+npm install
+npm test
 ```
 
 ## Troubleshooting
 
-- **Connection Issues**: Verify your `profile.json` credentials and network connectivity to Snowflake
-- **Permission Errors**: Ensure your role has the necessary privileges on the database, schema, and table
-- **Table Not Found**: Verify the table exists — the default pipe is created automatically
-- **VARIANT Columns**: If using VARIANT columns, pass data as a plain JavaScript object, not a JSON string
-- **Node.js Version**: Ensure you are running Node.js 20 or higher (`node --version`)
+- **Connection errors**: verify `profile.json` credentials and network access to Snowflake.
+- **Permission errors**: ensure your role has INSERT privilege on the table.
+- **SDK invalidation**: the examples recover within an attempt budget. Persistent errors require
+  investigating the underlying problem; a caller timeout alone does not trigger recreation.
+- **Node.js version**: ensure Node.js 20 or higher (`node --version`).
 
-## Additional Resources
+## Additional resources
 
-- [High-Performance Streaming Overview](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-high-performance-overview)
-- [Getting Started Guide](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-high-performance-getting-started)
+- [Snowpipe Streaming overview](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/data-load-snowpipe-streaming-overview)
+- [Getting started guide](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-high-performance-getting-started)
 - [Snowpipe Streaming SDK on npm](https://www.npmjs.com/package/snowpipe-streaming)

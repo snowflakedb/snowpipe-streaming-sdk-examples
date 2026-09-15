@@ -12,6 +12,7 @@
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <exec.mainClass>com.snowflake.example.ElasticQuickstart</exec.mainClass>
     </properties>
 
     <dependencies>
@@ -20,7 +21,7 @@
         <dependency>
             <groupId>com.snowflake</groupId>
             <artifactId>snowpipe-streaming</artifactId>
-            <version>1.3.0</version>
+            <version>1.8.0</version>
         </dependency>
 
         <!-- Jackson for JSON processing -->
@@ -35,6 +36,14 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
             <version>2.0.9</version>
+        </dependency>
+
+        <!-- JUnit 5 for narrow compile-check tests -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.0</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
@@ -54,10 +63,15 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
                 <configuration>
-                    <mainClass>com.snowflake.example.StreamingIngestExample</mainClass>
+                    <!-- Default entry point. Run others with -Dexec.mainClass=... -->
+                    <mainClass>${exec.mainClass}</mainClass>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.1.2</version>
             </plugin>
         </plugins>
     </build>
 </project>
-

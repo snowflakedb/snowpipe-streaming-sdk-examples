@@ -1,2 +1,3 @@
-# Snowflake Streaming Ingest SDK
-snowpipe-streaming
+# Snowflake Snowpipe Streaming SDK.
+# Elastic Channels require 1.8.0 or later.
+snowpipe-streaming>=1.8.0

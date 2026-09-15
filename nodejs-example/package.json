@@ -5,12 +5,13 @@
   "description": "Snowpipe Streaming SDK example for Node.js",
   "main": "streaming_ingest_example.js",
   "scripts": {
-    "start": "node streaming_ingest_example.js"
+    "start": "node streaming_ingest_example.js",
+    "test": "node --test test/*.test.js"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "snowpipe-streaming": "^1.4.0"
+    "snowpipe-streaming": "^1.8.0"
   }
 }
