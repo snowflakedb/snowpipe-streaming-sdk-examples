@@ -1,46 +1,47 @@
-# Java Snowpipe Streaming SDK Example
+# Java Snowpipe Streaming SDK Examples
 
-This example demonstrates how to use the Snowflake Streaming Ingest SDK in Java to ingest data into Snowflake in real-time using the [high-performance architecture](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-high-performance-overview) and default pipe.
+`ElasticChannelIngest` and `ElasticChannelCallbacks` tour the append APIs
+(Futures vs handlers). `ElasticChannelUnbounded` keeps that pipelined
+single-row pattern going for a large default row count. These examples
+require `snowpipe-streaming` **1.8.0 or later**.
 
-## Prerequisites
+## Examples
 
-- Java 11 or higher
-- Maven 3.6 or higher
-- A Snowflake account with appropriate permissions
-- RSA key-pair authentication configured
+| Path | Class | What it adds |
+| --- | --- | --- |
+| Elastic ingest | `ElasticChannelIngest` | The four append APIs. Pipelined single-row `appendRowWithWait` is the recommended default; `appendRows` is optional. |
+| Elastic ingest (callbacks) | `ElasticChannelCallbacks` | Same tour with `appendRow` / `appendRows`. Handlers only enqueue; the ingest thread waits. |
+| Elastic ingest (unbounded) | `ElasticChannelUnbounded` | Pipelined single-row appends at volume (10M rows by default). Interrupt drains accepted work and prints ack latency and rows/s. |
+
+The `monitoring` directory contains separate monitoring and abort examples.
 
 ## Setup
 
-### 1. Generate RSA Key Pair
+### Requirements
 
-```bash
-openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out rsa_key.p8 -nocrypt
-openssl rsa -in rsa_key.p8 -pubout -out rsa_key.pub
-```
+- Java 11 or later
+- Maven 3.6 or later
+- A Snowflake account with RSA key-pair authentication
+- A role allowed to insert into the target table
 
-Register the public key with your Snowflake user:
-
-```sql
-ALTER USER MY_USER SET RSA_PUBLIC_KEY='<contents of rsa_key.pub, without header/footer>';
-```
-
-### 2. Create a Snowflake Table
-
-Create a target table in your Snowflake account:
+### Target table
 
 ```sql
 CREATE OR REPLACE TABLE MY_DATABASE.MY_SCHEMA.MY_TABLE (
-    c1 NUMBER,
-    c2 VARCHAR,
-    ts TIMESTAMP_NTZ
+    DATA VARIANT,
+    EVENT_ID NUMBER,
+    C1 NUMBER,
+    C2 VARCHAR,
+    TS TIMESTAMP_NTZ
 );
 ```
 
-No `CREATE PIPE` is needed — the high-performance architecture automatically creates a **default pipe** named `MY_TABLE-STREAMING` when you first open a channel.
+No `CREATE PIPE` is required. Table-mode clients use the default
+`MY_TABLE-STREAMING` pipe.
 
-### 3. Configure Authentication
+### Authentication
 
-Create a `profile.json` file in the `java-example` directory using `profile.json.example` as a template:
+Create `profile.json` from `profile.json.example`:
 
 ```json
 {
@@ -52,66 +53,63 @@ Create a `profile.json` file in the `java-example` directory using `profile.json
 }
 ```
 
-**Note:** Use `private_key_file` to reference the key file path. For production, consider using a secure credential manager.
+Set object names through the environment or edit their example defaults:
 
-### 4. Update Configuration
+```bash
+export SNOWFLAKE_DATABASE=MY_DATABASE
+export SNOWFLAKE_SCHEMA=MY_SCHEMA
+export SNOWFLAKE_TABLE=MY_TABLE
+```
 
-Edit `src/main/java/com/snowflake/example/StreamingIngestExample.java` and update the constants at the top of the class:
+Alternatively, set `SNOWFLAKE_PAT`, `SNOWFLAKE_ACCOUNT`, and `SNOWFLAKE_URL`.
+`SNOWFLAKE_ROLE` is optional. The examples pass these values through
+`connectionProperties()`.
 
-- `DATABASE` - Your database name
-- `SCHEMA` - Your schema name
-- `TABLE` - Your table name (the pipe name is derived automatically as `<TABLE>-STREAMING`)
-
-## Build
+## Build And Run
 
 ```bash
 mvn clean package
+
+# ElasticChannelIngest is the default.
+mvn exec:java
+mvn exec:java -Dexec.mainClass=com.snowflake.example.ElasticChannelCallbacks
+mvn exec:java -Dexec.mainClass=com.snowflake.example.ElasticChannelUnbounded
 ```
 
-## Run
+Set `SNOWFLAKE_TEST_ROWS` to change the generated row count in the unbounded
+example (default 10,000,000). Interrupt the process to stop intake, wait for
+appends already accepted by the SDK, print stats, and close.
+
+## Semantics
+
+An Elastic acknowledgement confirms that Snowflake durably accepted the
+append. It does not confirm row validity or immediate table visibility. Check
+the target table and its error table separately.
+
+The SDK batches rows for transport. Waiting after every append is the slow
+path. Pipelined `appendRowWithWait` — submit many rows, then wait on the
+Futures — is the recommended default for throughput and simplicity.
+`appendRows` / `appendRowsWithWait` are optional: one Future and one
+append token for a logical group when you already have a batch, or to cut
+call overhead. They do not replace SDK transport batching.
+Fire-and-forget `appendRow` / `appendRows` return no Future; success and
+error handlers are the only acknowledgement signal, and they echo the
+caller-supplied append token. Those handlers run on the SDK acknowledgement
+thread: enqueue onto a `BlockingQueue` with `offer` and return. Do not wait,
+take locks the ingest thread also waits on, or call back into the SDK from a
+handler. `offer` on an unbounded queue never blocks; a bounded `put` can
+deadlock the ack thread. Count on the ingest thread after `poll`.
+
+Average ack latency can look large next to rows/s. Many appends are in
+flight, so throughput is not `1 / latency`.
+
+Replaying an Elastic append can create a duplicate. Use stable source event IDs
+and define downstream reconciliation for your application.
+
+## Tests
+
+The tests use SDK-shaped fake clients and do not connect to Snowflake:
 
 ```bash
-mvn exec:java
+mvn test
 ```
-
-## What the Example Does
-
-1. **Creates a Streaming Ingest Client** - Connects to Snowflake using credentials from `profile.json`
-2. **Opens a Channel** - Creates a channel on the default pipe (`MY_TABLE-STREAMING`)
-3. **Ingests Data** - Streams 100,000 rows with columns matched by name (MATCH_BY_COLUMN_NAME):
-   - `c1`: Integer counter
-   - `c2`: String representation of the counter
-   - `ts`: Current timestamp
-4. **Waits for Completion** - Uses `waitForCommit()` to block until all rows are committed, then calls `getChannelStatus()` to display committed offset, rows inserted, error count, and server latency
-5. **Closes Resources** - Properly closes the channel and client via try-with-resources
-
-## Expected Output
-
-```
-Client created successfully
-Channel opened: MY_CHANNEL_<uuid>
-Ingesting 100000 rows...
-Ingested 10000 rows...
-Ingested 20000 rows...
-...
-All rows submitted. Waiting for commit...
-All data committed. Channel status:
-  Committed offset:   100000
-  Rows inserted:      100000
-  Rows errored:       0
-  Avg server latency: 1234 ms
-Data ingestion completed
-```
-
-## Troubleshooting
-
-- **Connection Issues**: Verify your `profile.json` credentials and network connectivity to Snowflake
-- **Permission Errors**: Ensure your role has the necessary privileges on the database, schema, and table
-- **Table Not Found**: Verify the table exists — the default pipe is created automatically
-- **VARIANT Columns**: If using VARIANT columns, pass data as a Java `Map`, not a JSON string
-
-## Additional Resources
-
-- [High-Performance Streaming Overview](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-high-performance-overview)
-- [Getting Started Guide](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-high-performance-getting-started)
-- [Snowpipe Streaming SDK on Maven Central](https://repo1.maven.org/maven2/com/snowflake/snowpipe-streaming/)

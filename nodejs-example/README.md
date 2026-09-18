@@ -1,52 +1,53 @@
-# Node.js Snowpipe Streaming SDK Example
+# Node.js Snowpipe Streaming SDK Examples
 
-This example demonstrates how to use the Snowflake Streaming Ingest SDK in Node.js to ingest data into Snowflake in real-time using the [high-performance architecture](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-high-performance-overview) and default pipe.
+[`elastic_ingest.js`](./elastic_ingest.js) and
+[`elastic_ingest_callbacks.js`](./elastic_ingest_callbacks.js) tour the append
+APIs (Promises vs handlers). [`elastic_ingest_unbounded.js`](./elastic_ingest_unbounded.js)
+keeps that pipelined single-row pattern going for a large default row count.
+These examples require `snowpipe-streaming` **1.8.0 or later** and Node.js 20
+or later.
 
-## Prerequisites
+## Examples
 
-- Node.js 20 or higher
-- npm (Node.js package manager)
-- A Snowflake account with appropriate permissions
-- RSA key-pair authentication configured
+| Path | File | What it adds |
+| --- | --- | --- |
+| Elastic ingest | [`elastic_ingest.js`](./elastic_ingest.js) | The four append APIs. Pipelined single-row `appendRowWithWait` is the recommended default; `appendRows` is optional. |
+| Elastic ingest (callbacks) | [`elastic_ingest_callbacks.js`](./elastic_ingest_callbacks.js) | Same tour with `appendRow` / `appendRows`. Handlers only enqueue; the ingest path waits. |
+| Elastic ingest (unbounded) | [`elastic_ingest_unbounded.js`](./elastic_ingest_unbounded.js) | Pipelined single-row appends at volume (10M rows by default). Ctrl+C drains accepted work and prints ack latency and rows/s. |
 
 ## Setup
 
-### 1. Generate RSA Key Pair
+### Requirements
 
-```bash
-openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out rsa_key.p8 -nocrypt
-openssl rsa -in rsa_key.p8 -pubout -out rsa_key.pub
-```
+- Node.js 20 or later
+- npm
+- A Snowflake account with RSA key-pair authentication
+- A role allowed to insert into the target table
 
-Register the public key with your Snowflake user:
-
-```sql
-ALTER USER MY_USER SET RSA_PUBLIC_KEY='<contents of rsa_key.pub, without header/footer>';
-```
-
-### 2. Create a Snowflake Table
-
-Create a target table in your Snowflake account:
-
-```sql
-CREATE OR REPLACE TABLE MY_DATABASE.MY_SCHEMA.MY_TABLE (
-    c1 NUMBER,
-    c2 VARCHAR,
-    ts TIMESTAMP_NTZ
-);
-```
-
-No `CREATE PIPE` is needed — the high-performance architecture automatically creates a **default pipe** named `MY_TABLE-STREAMING` when you first open a channel.
-
-### 3. Install Dependencies
+Install the SDK:
 
 ```bash
 npm install
 ```
 
-### 4. Configure Authentication
+### Target table
 
-Create a `profile.json` file in the `nodejs-example` directory using `profile.json.example` as a template:
+```sql
+CREATE OR REPLACE TABLE MY_DATABASE.MY_SCHEMA.MY_TABLE (
+    DATA VARIANT,
+    EVENT_ID NUMBER,
+    C1 NUMBER,
+    C2 VARCHAR,
+    TS TIMESTAMP_NTZ
+);
+```
+
+No `CREATE PIPE` is required. Table-mode clients use the default
+`MY_TABLE-STREAMING` pipe.
+
+### Authentication
+
+Create `profile.json` from `profile.json.example`:
 
 ```json
 {
@@ -58,67 +59,71 @@ Create a `profile.json` file in the `nodejs-example` directory using `profile.js
 }
 ```
 
-**Note:** Use `private_key_file` to reference the key file path. For production, consider using a secure credential manager.
+Set object names through the environment or edit their example defaults:
 
-### 5. Update Configuration
+```bash
+export SNOWFLAKE_DATABASE=MY_DATABASE
+export SNOWFLAKE_SCHEMA=MY_SCHEMA
+export SNOWFLAKE_TABLE=MY_TABLE
+```
 
-Edit `streaming_ingest_example.js` and update the constants at the top of the file:
-
-- `DATABASE` - Your database name
-- `SCHEMA` - Your schema name
-- `TABLE` - Your table name (the pipe name is derived automatically as `<TABLE>-STREAMING`)
+Alternatively, set `SNOWFLAKE_PAT`, `SNOWFLAKE_ACCOUNT`, and `SNOWFLAKE_URL`.
+`SNOWFLAKE_ROLE` is optional. The examples pass these values through
+`connectionProperties()`.
 
 ## Run
 
 ```bash
 npm start
+node elastic_ingest_callbacks.js
+node elastic_ingest_unbounded.js
 ```
 
-Or directly:
+Set `SNOWFLAKE_TEST_ROWS` to change the generated row count in the unbounded
+example (default 10,000,000). Ctrl+C stops intake, waits for appends already
+accepted by the SDK, prints stats, and closes.
+
+## Semantics
+
+### Elastic Channels
+
+An Elastic acknowledgement confirms that Snowflake durably accepted the
+append. It does not confirm row validity or immediate table visibility. Check
+the target table and its error table separately.
+
+The SDK batches rows for transport. Waiting after every append is the slow
+path. Pipelined `appendRowWithWait` — submit many rows, then `await` the
+Promises — is the recommended default for throughput and simplicity.
+`appendRows` / `appendRowsWithWait` are optional: one Promise and one
+append token for a logical group when you already have a batch, or to cut
+JS/FFI call overhead. They do not replace SDK transport batching.
+Fire-and-forget `appendRow` / `appendRows` return no Promise; success and
+error handlers are the only acknowledgement signal, and they echo the
+caller-supplied append token. Those handlers run on the SDK acknowledgement
+callback: enqueue a cheap event and return. Do not wait, block the event
+loop, or call back into the SDK from a handler. Count on the ingest path
+after `waitOne()`.
+
+Average ack latency can look large next to rows/s. Many appends are in
+flight, so throughput is not `1 / latency`.
+
+Replaying an Elastic append can create a duplicate. Use stable source event IDs
+and define downstream reconciliation for your application.
+
+## Tests
+
+The tests use SDK-shaped fake clients and do not connect to Snowflake:
 
 ```bash
-node streaming_ingest_example.js
+npm test
 ```
 
-## What the Example Does
-
-1. **Creates a Streaming Ingest Client** - Connects to Snowflake using credentials from `profile.json`
-2. **Opens a Channel** - Creates a channel on the default pipe (`MY_TABLE-STREAMING`)
-3. **Ingests Data** - Streams 100,000 rows with columns matched by name (MATCH_BY_COLUMN_NAME):
-   - `c1`: Integer counter
-   - `c2`: String representation of the counter
-   - `ts`: Current timestamp
-4. **Waits for Completion** - Uses `waitForCommit()` to block until all rows are committed, then calls `getChannelStatus()` to display committed offset, rows inserted, error count, and server latency
-5. **Closes Resources** - Properly closes the channel and client via try/finally blocks
-
-## Expected Output
-
-```
-Client created successfully
-Channel opened: MY_CHANNEL_<uuid>
-Ingesting 100000 rows...
-Ingested 10000 rows...
-Ingested 20000 rows...
-...
-All rows submitted. Waiting for commit...
-All data committed. Channel status:
-  Committed offset:   100000
-  Rows inserted:      100000
-  Rows errored:       0
-  Avg server latency: 1234 ms
-Data ingestion completed
-```
-
-## Troubleshooting
-
-- **Connection Issues**: Verify your `profile.json` credentials and network connectivity to Snowflake
-- **Permission Errors**: Ensure your role has the necessary privileges on the database, schema, and table
-- **Table Not Found**: Verify the table exists — the default pipe is created automatically
-- **VARIANT Columns**: If using VARIANT columns, pass data as a plain JavaScript object, not a JSON string
-- **Node.js Version**: Ensure you are running Node.js 20 or higher (`node --version`)
+They cover connection properties, callback handoff, and clean shutdown after
+interrupt.
 
 ## Additional Resources
 
-- [High-Performance Streaming Overview](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-high-performance-overview)
-- [Getting Started Guide](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-high-performance-getting-started)
+- [Elastic Channels overview](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-elastic-channels-overview)
+- [Elastic Channels getting started](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-elastic-channels-getting-started)
+- [Elastic Channels best practices](https://docs.snowflake.com/en/user-guide/snowpipe-streaming/snowpipe-streaming-elastic-channels-best-practices)
 - [Snowpipe Streaming SDK on npm](https://www.npmjs.com/package/snowpipe-streaming)

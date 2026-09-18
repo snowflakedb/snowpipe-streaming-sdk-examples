@@ -1,0 +1,4 @@
+# Elastic Channels REST production example
+requests>=2.31.0
+PyJWT>=2.8.0
+cryptography>=41.0.0

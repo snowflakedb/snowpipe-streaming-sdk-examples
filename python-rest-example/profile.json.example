@@ -1,0 +1,9 @@
+{
+  "account": "<account_identifier>",
+  "user": "your_username",
+  "private_key_file": "rsa_key.p8",
+  "role": "your_role",
+  "database": "MY_DATABASE",
+  "schema": "MY_SCHEMA",
+  "table": "MY_TABLE"
+}
