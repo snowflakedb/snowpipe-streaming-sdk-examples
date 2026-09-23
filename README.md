@@ -33,6 +33,13 @@ A complete Node.js project demonstrating the Snowpipe Streaming SDK in Node.js. 
 - Setup instructions
 - Sample configuration files
 
+### [REST Examples](./python-rest-example)
+
+Use direct REST when the SDK is not suitable. The Python quickstart uses profile-based
+key-pair authentication, sequential gzip batches capped at 1 MB compressed, and bounded
+retries. Walkthrough comments explain the flow. Source retention and crash recovery
+remain application responsibilities.
+
 ## Getting Started
 
 1. Choose your preferred language (Java, Python, or Node.js)
