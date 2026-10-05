@@ -1,7 +1,7 @@
 [project]
 name = "snowpipe-streaming-monitoring-example"
 version = "0.1.0"
-description = "Read-only, table-scoped Snowpipe Streaming telemetry dashboard example"
+description = "Read-only Snowpipe Streaming table activity and channel monitoring example"
 requires-python = ">=3.11,<3.12"
 dependencies = [
     "streamlit[snowflake]>=1.53.1,<2",
