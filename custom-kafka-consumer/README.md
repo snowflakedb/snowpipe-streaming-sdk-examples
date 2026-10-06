@@ -6,7 +6,7 @@ A sample Kafka-to-Snowflake streaming consumer using the Snowpipe Streaming SDK 
 
 This example includes a complete end-to-end demo that simulates a telecom cell tower monitoring pipeline:
 
-1. **Streaming Ingestion** — A fake producer generates Call Detail Records (CDRs) into Kafka topics. The custom consumer ingests these records into a Snowflake table using the Snowpipe Streaming High Performance Architecture SDK, with partition-level offset tracking and exactly-once semantics.
+1. **Streaming Ingestion** — A fake producer generates Call Detail Records (CDRs) into Kafka topics. The custom consumer ingests these records into a Snowflake table using the Snowpipe Streaming High Performance Architecture SDK, with partition-level offset tracking for restart recovery.
 
 2. **ML Prediction** — Once data is flowing, three `SNOWFLAKE.ML.FORECAST` models are trained directly in Snowflake (pure SQL, no Python) to predict tower activity over the next 7 days:
    - **Call drop rate** — which towers are likely to have the highest failure rates

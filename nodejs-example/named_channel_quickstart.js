@@ -13,7 +13,7 @@
 const crypto = require("node:crypto");
 const { createClient } = require("snowpipe-streaming");
 
-const MAX_ROWS = 100_000;
+const MAX_ROWS = 10;
 
 // Replace these with your Snowflake object names
 const DATABASE = "MY_DATABASE";
@@ -36,6 +36,8 @@ async function main() {
   console.log("Client created successfully");
 
   try {
+    // A fresh name isolates this demo. Restart recovery needs stable ownership
+    // and the committed offset returned by openChannel, not another random name.
     // Open a channel for data ingestion
     const { channel } = await client.openChannel({
       name: `MY_CHANNEL_${crypto.randomUUID()}`,
@@ -48,6 +50,7 @@ async function main() {
       // The default pipe uses MATCH_BY_COLUMN_NAME to map fields.
       console.log(`Ingesting ${MAX_ROWS} rows...`);
       for (let i = 1; i <= MAX_ROWS; i++) {
+        // Offsets identify source positions; they are not automatic deduplication keys.
         const rowId = String(i);
         await channel.appendRow(
           {
@@ -58,9 +61,6 @@ async function main() {
           rowId,
         );
 
-        if (i % 10_000 === 0) {
-          console.log(`Ingested ${i} rows...`);
-        }
       }
 
       console.log("All rows submitted. Waiting for commit...");
@@ -68,6 +68,7 @@ async function main() {
       // Wait for all rows to be committed using waitForCommit.
       // The predicate receives the latest committed offset token
       // (string or null) and should return true when satisfied.
+      // A timeout does not cancel ingestion or prove failure. Do not blindly replay.
       await channel.waitForCommit(
         (token) => token !== null && Number(token) >= MAX_ROWS,
         { timeoutMs: 30_000 },

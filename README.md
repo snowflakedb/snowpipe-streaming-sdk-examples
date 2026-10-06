@@ -6,12 +6,26 @@ This repository contains examples demonstrating how to use the Snowpipe Streamin
 
 The Snowpipe Streaming SDK enables applications to stream data directly into Snowflake tables with low latency and high throughput. This repository provides practical examples to help you get started with the SDK quickly.
 
+Each language provides two self-contained quickstarts using `profile.json`:
+
+- **Elastic channel:** ten pipelined appends, durable acknowledgements, and cleanup.
+- **Named channel:** ten appends with offsets, a final commit wait, and channel status.
+
+The SDK handles transport batching and retries. These examples demonstrate first ingestion,
+not durable source recovery. See each language README for setup and delivery semantics.
+
+## Choosing SDK vs. REST
+
+- **SDK (Java, Python, Node.js)** — recommended for most applications. Higher throughput and simpler error handling than calling the REST API directly.
+- **REST API** — use for lightweight, language-agnostic, or infrastructure-constrained integrations where adding the SDK isn't practical.
+
 ## Examples
 
 This repository contains complete, runnable examples in multiple languages:
 
 ### [Java Example](./java-example)
 A complete Maven project demonstrating the Snowpipe Streaming SDK in Java. Includes:
+- Elastic and named channel quickstarts
 - Maven build configuration with all required dependencies
 - Full example code with proper error handling
 - Comprehensive setup instructions
@@ -20,6 +34,7 @@ A complete Maven project demonstrating the Snowpipe Streaming SDK in Java. Inclu
 
 ### [Python Example](./python-example)
 A complete Python project demonstrating the Snowpipe Streaming SDK in Python. Includes:
+- Elastic and named channel quickstarts
 - Requirements file with all necessary packages
 - Clean, well-documented example code
 - Setup instructions with virtual environment
@@ -28,6 +43,7 @@ A complete Python project demonstrating the Snowpipe Streaming SDK in Python. In
 
 ### [Node.js Example](./nodejs-example)
 A complete Node.js project demonstrating the Snowpipe Streaming SDK in Node.js. Includes:
+- Elastic and named channel quickstarts
 - npm package configuration with all required dependencies
 - Clean, well-documented example code
 - Setup instructions
@@ -48,7 +64,7 @@ A single-file Streamlit example for Snowpipe Streaming event-table telemetry. Up
 
 ## Important Notes
 
-**Dependencies**: The dependency versions used in the examples are for demonstration purposes only. These should be updated appropriately based on the SDK version you are using.
+**SDK version**: All examples require `snowpipe-streaming` **1.8.0** or later. The version numbers in the dependency files (`pom.xml`, `package.json`, `requirements.txt`) reflect the minimum tested version. Pin to the latest published SDK version in production deployments.
 
 ## License
 
