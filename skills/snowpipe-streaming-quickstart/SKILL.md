@@ -1,6 +1,6 @@
 ---
 name: snowpipe-streaming-quickstart
-description: "Automated quick-start for Snowpipe Streaming high-performance architecture (HPA). Detects your OS (macOS/Linux/Windows), verifies Python, sets up a virtual environment, creates a landing table, configures RSA key-pair auth, streams fake user data via the default auto-created pipe, and deploys a real-time Streamlit in Snowflake dashboard so you can watch rows arrive live. Triggers: snowpipe streaming quickstart, snowpipe streaming demo, demo snowpipe streaming, try snowpipe streaming, snowpipe streaming hpa quickstart."
+description: "Automated quick-start for Snowpipe Streaming high-performance architecture (HPA). Detects your OS (macOS/Linux/Windows), verifies Python, sets up a virtual environment, creates a landing table, configures RSA key-pair auth, streams fake user data via the default auto-created pipe, and deploys a real-time Streamlit in Snowflake dashboard so you can watch rows arrive live. Triggers: snowpipe streaming quickstart, snowpipe streaming demo, demo snowpipe streaming, try snowpipe streaming, snowpipe streaming hpa quickstart, set up snowpipe streaming, get started with snowpipe streaming, snowpipe streaming tutorial, streaming ingestion demo, snowpipe streaming example."
 ---
 
 <!-- Copyright (c) 2026 Snowflake Inc. Licensed under Apache 2.0. See LICENSE. -->
@@ -43,19 +43,9 @@ The Python SDK references the default pipe using this naming convention:
 - Table `STREAMING_QUICKSTART_USERS` → Pipe name: `STREAMING_QUICKSTART_USERS-streaming`
 - Table `MY_EVENTS` → Pipe name: `MY_EVENTS-streaming`
 
-### High-performance vs Classic architecture
-
-The high-performance architecture (V2) is the recommended path. Unlike classic, it uses a PIPE object for data ingestion. The default pipe is auto-created at ingest time — no explicit `CREATE PIPE` is needed for straightforward use cases.
-
 ### Authentication
 
-The Python SDK uses **key-pair (JWT) authentication**. The `profile.json` file references a `private_key_file` path (not inline key content). OAuth is only available in SDK 2.0.3+.
-
-### Supported platforms
-
-- **macOS** (ARM64) — fully supported
-- **Linux** (x86_64, ARM64) — fully supported (requires glibc >= 2.26)
-- **Windows** (x86_64) — **experimental**. The skill's shell commands target Unix. Windows users should use WSL2 or Git Bash. If Windows is detected, warn the user and offer to continue at their own risk.
+Key-pair (JWT) only. The `profile.json` references a `private_key_file` path. OAuth requires SDK 2.0.3+.
 
 ## Instructions
 
@@ -185,8 +175,6 @@ Capture the public key body output (the base64 string after `=== PUBLIC KEY BODY
 
 **Purpose:** Create the database, schema, landing table, a dedicated demo user with the RSA public key, and the necessary grants — all in one SQL call to minimize prompts.
 
-**Why a demo user?** The Snowpipe Streaming SDK requires RSA key-pair auth. Rather than overwriting any existing RSA key on the current user (which could break their existing workflows), we create a short-lived demo user `STREAMING_DEMO_USER` with a dedicated role. This user is always cleaned up at the end.
-
 Run **all of these in one single SQL call** (multi-statement):
 
 ```sql
@@ -219,8 +207,6 @@ GRANT OWNERSHIP ON TABLE <DATABASE>.<SCHEMA>.<TABLE_NAME> TO ROLE STREAMING_DEMO
 GRANT SELECT ON TABLE <DATABASE>.<SCHEMA>.<TABLE_NAME> TO ROLE <CURRENT_ROLE>;
 DESC USER STREAMING_DEMO_USER;
 ```
-
-**Why GRANT OWNERSHIP on the table?** The default auto-created pipe is Snowflake-managed and tied to the table. The role that streams data must own the table to ensure full access to the default pipe (which is auto-created on first ingest). The DB and schema remain owned by the primary role so the user can still see and query the table under their own role. After transferring ownership, we grant SELECT back to the primary role so the Streamlit dashboard (which runs under the primary role) can read the table.
 
 Look for `RSA_PUBLIC_KEY` in the DESC USER output to confirm it was set.
 
@@ -309,13 +295,7 @@ If either import fails:
 
 ### Demo script reference (streaming_demo.py)
 
-**Note:** This script is written to disk in Step 4a (parallel with profile.json). The content below is the full template — interpolate `<DATABASE>`, `<SCHEMA>`, `<TABLE_NAME>`, and `<DEMO_MINUTES>` with the user's chosen values.
-
-**Security note:** The private key (`rsa_key.p8`) is unencrypted for demo simplicity. In production, use an encrypted key with a passphrase or a secrets manager.
-
-This script runs **locally on your computer** and uses the Snowpipe Streaming SDK to stream data directly into Snowflake. It generates fake user data with order amounts and sends batches of 5 rows every 0.5 seconds.
-
-**Architecture:** Your local Python script → Snowpipe Streaming SDK → Snowflake (cloud)
+This script is written to disk in Step 4a (parallel with profile.json). Interpolate `<DATABASE>`, `<SCHEMA>`, `<TABLE_NAME>`, and `<DEMO_MINUTES>` with the user's chosen values.
 
 ```python
 import time
@@ -458,9 +438,7 @@ print("\nDemo complete!")
 
 ### Step 5 — Deploy a real-time Streamlit dashboard in Snowflake
 
-**Purpose:** Deploy a live monitoring dashboard that runs **in the Snowflake cloud**. While your local Python script streams data, this cloud-hosted dashboard auto-refreshes every 2 seconds so you can watch data arrive in real-time from anywhere. No local Streamlit install needed.
-
-**Architecture:** Local streaming script → Snowflake table ← Cloud dashboard (Streamlit in Snowflake)
+**Purpose:** Deploy a live Streamlit in Snowflake dashboard that auto-refreshes every 2 seconds.
 
 #### 5a. Create stage and write Streamlit app locally
 
@@ -472,98 +450,9 @@ CREATE STAGE IF NOT EXISTS <DATABASE>.<SCHEMA>.STREAMING_STREAMLIT_STAGE
     DIRECTORY = (ENABLE = TRUE);
 ```
 
-**Tool call 2 — FileWrite** (write `streamlit_app.py` locally):
+**Tool call 2 — FileWrite** (write `streamlit_app.py` locally using the template in [streamlit_app.py.template](streamlit_app.py.template)):
 
-```python
-import streamlit as st
-import time
-
-st.set_page_config(page_title="Snowpipe Streaming Monitor", layout="wide")
-
-conn = st.connection("snowflake")
-
-DATABASE = "<DATABASE>"
-SCHEMA   = "<SCHEMA>"
-TABLE    = "<TABLE_NAME>"
-REFRESH_INTERVAL = 2
-
-st.title("Snowpipe Streaming HPA — Live Monitor")
-st.caption(f"Reading from `{DATABASE}.{SCHEMA}.{TABLE}` · refreshes every {REFRESH_INTERVAL}s")
-
-try:
-    metrics_df = conn.query(
-        f"""SELECT COUNT(*) AS total_rows, 
-                   COALESCE(SUM(order_amount), 0) AS total_revenue
-            FROM {DATABASE}.{SCHEMA}.{TABLE}""",
-        ttl=0,
-    )
-    total_rows = metrics_df["TOTAL_ROWS"].iloc[0] if len(metrics_df) > 0 else 0
-    total_revenue = metrics_df["TOTAL_REVENUE"].iloc[0] if len(metrics_df) > 0 else 0
-except Exception as e:
-    st.error(f"Error querying table: {e}")
-    total_rows = 0
-    total_revenue = 0
-
-if total_rows > 0:
-    latest_df = conn.query(
-        f"""SELECT MAX(user_id) AS latest_id,
-                   COUNT(DISTINCT country) AS unique_countries
-            FROM {DATABASE}.{SCHEMA}.{TABLE}""",
-        ttl=0,
-    )
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Rows", f"{total_rows:,}")
-    col2.metric("Revenue Total", f"${total_revenue:,.2f}")
-    col3.metric("Latest User ID", latest_df["LATEST_ID"].iloc[0])
-    col4.metric("Unique Countries", latest_df["UNIQUE_COUNTRIES"].iloc[0])
-else:
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Rows", "0")
-    col2.metric("Revenue Total", "$0.00")
-    col3.metric("Latest User ID", "—")
-    col4.metric("Unique Countries", "—")
-    st.info("Waiting for data... Start the streaming demo to see rows appear.")
-
-st.subheader("Most Recent Records")
-if total_rows > 0:
-    recent_df = conn.query(
-        f"""SELECT user_id, first_name, last_name, email, country, order_amount
-            FROM {DATABASE}.{SCHEMA}.{TABLE}
-            ORDER BY user_id DESC
-            LIMIT 20""",
-        ttl=0,
-    )
-    st.dataframe(recent_df, use_container_width=True, hide_index=True)
-else:
-    st.write("No data yet.")
-
-if total_rows > 0:
-    st.subheader("Revenue Over Time")
-    time_df = conn.query(
-        f"""SELECT 
-                DATE_TRUNC('second', registration_date) AS time_bucket,
-                SUM(SUM(order_amount)) OVER (ORDER BY DATE_TRUNC('second', registration_date)) AS cumulative_revenue
-            FROM {DATABASE}.{SCHEMA}.{TABLE}
-            GROUP BY time_bucket
-            ORDER BY time_bucket""",
-        ttl=0,
-    )
-    st.line_chart(time_df.set_index("TIME_BUCKET"), y="CUMULATIVE_REVENUE", height=300)
-
-    st.subheader("Top 10 Countries by Revenue")
-    country_df = conn.query(
-        f"""SELECT country, SUM(order_amount) AS revenue
-            FROM {DATABASE}.{SCHEMA}.{TABLE}
-            GROUP BY country
-            ORDER BY revenue DESC
-            LIMIT 10""",
-        ttl=0,
-    )
-    st.dataframe(country_df, use_container_width=True, hide_index=True)
-
-time.sleep(REFRESH_INTERVAL)
-st.rerun()
-```
+Substitute `<DATABASE>`, `<SCHEMA>`, and `<TABLE_NAME>` placeholders with the user's chosen values before writing.
 
 #### 5b. Upload to stage
 
@@ -633,15 +522,7 @@ GRANT USAGE ON STREAMLIT <DATABASE>.<SCHEMA>.STREAMING_MONITOR TO ROLE <ROLE>;
 
 ### Step 6 — Run the streaming demo
 
-**Purpose:** This is the exciting part! You'll run a **local Python script on your computer** that streams data directly into Snowflake's cloud. Meanwhile, your **cloud-hosted Streamlit dashboard** displays the data as it arrives — demonstrating real-time ingestion from local to cloud.
-
-**What's happening:**
-- **Local (your computer):** Python script generating and streaming fake user data
-- **Cloud (Snowflake):** Receiving data via Snowpipe Streaming, storing in table, displaying on live dashboard
-
-Data typically takes 5-10 seconds to start appearing in the dashboard after the script begins streaming.
-
-**After the demo completes:** We'll summarize the results (rows inserted, revenue generated, errors) and then optionally clean up the Snowflake assets created during this quickstart.
+**Purpose:** Run the local Python script that streams fake user data into Snowflake via the Snowpipe Streaming SDK.
 
 Run the demo:
 
@@ -649,9 +530,7 @@ Run the demo:
 source streaming_venv/bin/activate && python streaming_demo.py
 ```
 
-**Note:** Data typically takes 5-10 seconds to start appearing in the dashboard after the script begins streaming.
-
-The user should have the Streamlit dashboard open (from Step 5e) to watch data arrive in real time.
+The user should have the Streamlit dashboard open (from Step 5e) to watch data arrive in real time. Data typically takes 5-10 seconds to appear.
 
 **Error handling — common issues:**
 
@@ -791,56 +670,3 @@ deactivate 2>/dev/null; rm -rf streaming_venv; rm -f rsa_key.p8 rsa_key.pub prof
 → Warn that Windows support is experimental. Recommend WSL2 or Git Bash. If they proceed, use the CMD fallback commands.
 
 ---
-
-## Templates
-
-### profile.json
-
-```json
-{
-    "user": "STREAMING_DEMO_USER",
-    "account": "{{ACCOUNT_IDENTIFIER}}",
-    "url": "https://{{ACCOUNT_IDENTIFIER}}.snowflakecomputing.com:443",
-    "private_key_file": "rsa_key.p8",
-    "role": "STREAMING_DEMO_ROLE"
-}
-```
-
-### Table DDL
-
-```sql
-CREATE OR REPLACE TABLE {{DATABASE}}.{{SCHEMA}}.{{TABLE_NAME}} (
-    user_id              INTEGER,
-    first_name           VARCHAR(100),
-    last_name            VARCHAR(100),
-    email                VARCHAR(255),
-    phone_number         VARCHAR(50),
-    address              VARCHAR(500),
-    date_of_birth        DATE,
-    registration_date    TIMESTAMP_NTZ,
-    city                 VARCHAR(100),
-    state                VARCHAR(100),
-    country              VARCHAR(100),
-    order_amount         NUMBER(10,2)
-);
-```
-
-### Default pipe reference
-
-No `CREATE PIPE` needed. The SDK references:
-```
-{{TABLE_NAME}}-streaming
-```
-
-### Streamlit deployment
-
-```sql
-CREATE STAGE IF NOT EXISTS {{DATABASE}}.{{SCHEMA}}.STREAMING_STREAMLIT_STAGE
-    DIRECTORY = (ENABLE = TRUE);
-
--- After uploading streamlit_app.py:
-CREATE OR REPLACE STREAMLIT {{DATABASE}}.{{SCHEMA}}.STREAMING_MONITOR
-    ROOT_LOCATION = '@{{DATABASE}}.{{SCHEMA}}.STREAMING_STREAMLIT_STAGE'
-    MAIN_FILE = 'streamlit_app.py'
-    QUERY_WAREHOUSE = '{{WAREHOUSE}}';
-```
