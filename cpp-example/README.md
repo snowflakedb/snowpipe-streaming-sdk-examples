@@ -14,8 +14,8 @@ signature file. Download all three files into the same directory, then validate 
 unpack the package by running the following commands. Set `SDK_VERSION` to the
 version you downloaded, `PLATFORM` to your package's platform (`Linux-x86_64`,
 `Linux-aarch64`, or `Darwin-arm64`), and `GPG_KEY_ID` to the ID of the Snowflake
-public key that signed the package. Beginning with version 1.9.4, packages are
-signed with the Snowflake public key `3C98F63C9292CE02`.
+public key that signed the package. Packages are signed with the Snowflake public
+key `3C98F63C9292CE02`.
 
 ```bash
 SDK_VERSION=1.9.4
@@ -31,6 +31,7 @@ gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys "${GPG_KEY_ID}"
 gpg --verify "${PACKAGE}.asc" "${PACKAGE}"
 
 tar -xzf "${PACKAGE}"
+SDK_DIR="$PWD/snowflake-streaming-ingest-cpp-${SDK_VERSION}-${PLATFORM}"
 ```
 
 Do not use the package if either check fails.
@@ -59,12 +60,12 @@ CREATE TABLE MY_DATABASE.MY_SCHEMA.MY_TABLE (
 
 Set `kDatabase`, `kSchema`, and `kTable` at the top of the example you want to run.
 Both examples use the default streaming pipe; no CREATE PIPE statement is needed.
-Build with `CMAKE_PREFIX_PATH` set to the directory where you unpacked the SDK package
-(`<sdk_package_dir>`), then run from this language directory so `profile.json`
-resolves correctly:
+Build with `CMAKE_PREFIX_PATH` set to the absolute path of the unpacked package
+directory (`SDK_DIR` from the step above, not the directory where you ran `tar`),
+then run from this language directory so `profile.json` resolves correctly:
 
 ```bash
-cmake -S . -B build -DCMAKE_PREFIX_PATH=<sdk_package_dir>
+cmake -S . -B build -DCMAKE_PREFIX_PATH="$SDK_DIR"
 cmake --build build
 ./build/elastic_channel_quickstart
 ./build/named_channel_quickstart
