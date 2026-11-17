@@ -88,13 +88,14 @@ cmake --build build
 ## Choose a Quickstart
 
 Each row is passed as a JSON-shaped string whose keys match the target columns.
+Both examples send `c1`, `c2`, and a `ts` timestamp field that demonstrates an
+additional column mapping.
 
 - **Elastic:** generates rows, submits them before waiting, observes durable
   acknowledgements, and closes the client. The SDK batches and retries transport
   operations. No application channel name or source offset is required.
 - **Named:** opens a fresh demonstration channel, appends rows with offsets,
   waits for the final committed offset, reports channel status, and closes.
-  The timestamp field demonstrates an additional column mapping.
 
 ## Errors and Delivery
 

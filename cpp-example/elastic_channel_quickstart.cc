@@ -4,10 +4,13 @@
 #include <snowflake/ingest/streaming/elastic_channel.h>
 
 #include <chrono>
+#include <ctime>
 #include <future>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <random>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -23,6 +26,15 @@ constexpr const char* kTable = "MY_TABLE";
 std::string RandomSuffix() {
   std::random_device rd;
   return std::to_string(std::mt19937_64(rd())());
+}
+
+std::string Now() {
+  std::time_t now = std::time(nullptr);
+  std::tm local{};
+  localtime_r(&now, &local);
+  std::ostringstream out;
+  out << std::put_time(&local, "%Y-%m-%d %H:%M:%S");
+  return out.str();
 }
 
 // Prints the error if the call failed. Returns whether it succeeded.
@@ -58,7 +70,8 @@ int main() {
   for (int event_id = 1; event_id <= 10; ++event_id) {
     // Replace sample values with source data; keys match the target columns.
     const std::string id = std::to_string(event_id);
-    const std::string row = R"({"C1": )" + id + R"(, "C2": ")" + id + R"("})";
+    const std::string row = R"({"c1": )" + id + R"(, "c2": ")" + id +
+                            R"(", "ts": ")" + Now() + R"("})";
     // Submit before waiting so the SDK can batch. std::nullopt disables callback token reporting.
     sn::Result<std::future<sn::Result<void>>> ack_future =
         channel->AppendRowWithWait(row, std::nullopt);
