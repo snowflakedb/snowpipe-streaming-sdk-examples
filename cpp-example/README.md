@@ -10,18 +10,32 @@ Download the C++ Snowpipe Streaming SDK from the
 [Snowflake Client Repository](https://sfc-repo.snowflakecomputing.com/snowpipe-streaming-cpp/index.html).
 
 Each package in the repository has a matching `.sha256` checksum file and `.asc`
-signature file. Download all three files into the same directory, then validate and
-unpack the package by running the following commands. Set `SDK_VERSION` to the
-version you downloaded, `PLATFORM` to your package's platform (`Linux-x86_64`,
-`Linux-aarch64`, or `Darwin-arm64`), and `GPG_KEY_ID` to the ID of the Snowflake
-public key that signed the package. Packages are signed with the Snowflake public
-key `3C98F63C9292CE02`.
+signature file. The following commands download all three files into the current
+directory, then validate and unpack the package. Set `SDK_VERSION` to the version
+you want, `PLATFORM` to your package's platform, and `PLATFORM_DIR` to the matching
+repository directory:
+
+| `PLATFORM` | `PLATFORM_DIR` |
+|---|---|
+| `Linux-x86_64` | `linux_x86_64` |
+| `Linux-aarch64` | `linux_aarch64` |
+| `Darwin-arm64` | `macos_arm64` |
+
+Set `GPG_KEY_ID` to the ID of the Snowflake public key that signed the package.
+Packages are signed with the Snowflake public key `3C98F63C9292CE02`.
 
 ```bash
 SDK_VERSION=1.9.4
 PLATFORM=Linux-x86_64
+PLATFORM_DIR=linux_x86_64
 GPG_KEY_ID=3C98F63C9292CE02
 PACKAGE=snowflake-streaming-ingest-cpp-${SDK_VERSION}-${PLATFORM}.tar.gz
+BASE_URL=https://sfc-repo.snowflakecomputing.com/snowpipe-streaming-cpp/${SDK_VERSION}/${PLATFORM_DIR}
+
+# Download the package, checksum, and signature into the current directory.
+curl -fLO "${BASE_URL}/${PACKAGE}"
+curl -fLO "${BASE_URL}/${PACKAGE}.sha256"
+curl -fLO "${BASE_URL}/${PACKAGE}.asc"
 
 # Verify the checksum. On macOS, run: shasum -a 256 -c "${PACKAGE}.sha256"
 sha256sum -c "${PACKAGE}.sha256"
