@@ -16,7 +16,7 @@ not durable source recovery. See each language README for setup and delivery sem
 
 ## Choosing SDK vs. REST
 
-- **SDK (Java, Python, Node.js)** — recommended for most applications. Higher throughput and simpler error handling than calling the REST API directly.
+- **SDK (Java, Python, Node.js, C++)** — recommended for most applications. Higher throughput and simpler error handling than calling the REST API directly.
 - **REST API** — use for lightweight, language-agnostic, or infrastructure-constrained integrations where adding the SDK isn't practical.
 
 ## Examples
@@ -49,6 +49,13 @@ A complete Node.js project demonstrating the Snowpipe Streaming SDK in Node.js. 
 - Setup instructions
 - Sample configuration files
 
+### [C++ Example](./cpp-example)
+A CMake project demonstrating the Snowpipe Streaming SDK in C++. Includes:
+- Elastic and named channel quickstarts
+- CMake build configuration that links against the unpacked SDK package
+- Setup instructions, including artifact validation
+- Sample configuration files
+
 ### [REST Examples](./python-rest-example)
 
 Use direct REST when the SDK is not suitable. The Python quickstart uses profile-based
@@ -65,7 +72,7 @@ End-to-end, presentable demos. Includes:
 
 ## Getting Started
 
-1. Choose your preferred language (Java, Python, or Node.js)
+1. Choose your preferred language (Java, Python, Node.js, or C++)
 2. Navigate to the respective example directory
 3. Follow the README instructions in that directory to:
    - Set up your Snowflake table and pipe

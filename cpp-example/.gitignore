@@ -1,0 +1,16 @@
+# Build output
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Credentials
+profile.json
+
+# OS
+.DS_Store
+Thumbs.db
